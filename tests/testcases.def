@@ -1,0 +1,12 @@
+
+
+
+TEST(OpenCloseConnection)
+{
+    logdb_connection* conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
+    ASSERTF(!conn, "temp.logdb should not exist");
+
+    
+    PASS;
+}
+

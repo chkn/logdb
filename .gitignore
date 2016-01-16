@@ -1,0 +1,7 @@
+.DS_Store
+LogDB.make
+Makefile
+Tests.make
+bin/
+obj/
+premake5
