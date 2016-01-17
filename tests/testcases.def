@@ -3,10 +3,16 @@
 
 TEST(OpenCloseConnection)
 {
-    logdb_connection* conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
+    logdb_connection* conn;
+    
+    conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING, 0);
     ASSERTF(!conn, "temp.logdb should not exist");
 
-    
+    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE, 0);
+    ASSERT(conn);
+ 
+    ASSERT(logdb_close(conn) == 0);
+    unlink("temp.logdb");
     PASS;
 }
 
