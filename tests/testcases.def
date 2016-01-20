@@ -5,13 +5,32 @@ TEST(OpenCloseConnection)
 {
     logdb_connection* conn;
     
-    conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING, 0);
-    ASSERTF(!conn, "temp.logdb should not exist");
+    conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
+    if (conn) {
+        logdb_close(conn);
+        ASSERTF(0, "temp.logdb should not exist");
+    }
 
-    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE, 0);
+    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
+    ASSERT(conn);
+    
+    struct stat stats1;
+    ASSERT(!stat ("temp.logdb", &stats1));
+ 
+    ASSERT(!logdb_close(conn));
+    
+    struct stat stats2;
+    ASSERT(!stat ("temp.logdb", &stats2));
+
+    /* Ensure the index mergeback doesn't increase file size */
+    ASSERT(stats1.st_size == stats2.st_size);
+
+    /* We should be able to open it again, no problemo */
+    conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
     ASSERT(conn);
  
-    ASSERT(logdb_close(conn) == 0);
+    ASSERT(!logdb_close(conn));
+    
     unlink("temp.logdb");
     PASS;
 }

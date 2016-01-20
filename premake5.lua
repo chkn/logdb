@@ -1,40 +1,46 @@
 
 solution "LogDB"
-   configurations { "Debug", "Release" }
+	configurations { "Debug", "DebugVerbose", "Release" }
 
 project "LogDB"
-   language "C"
-   kind "SharedLib"
+	language "C"
+	kind "SharedLib"
 
-   files {
-       "include/**.h",
-       "src/**.h",
-       "src/**.c"
-   }
-   includedirs { "include" }
+	files {
+		"include/**.h",
+		"src/**.h",
+		"src/**.c"
+	}
+	includedirs { "include" }
 
-   configuration "Debug"
-      defines { "DEBUG" }
-      flags { "Symbols" }
-      targetdir "bin/Debug"
+	filter "system:macosx"
+		linkoptions { '-Wl,-install_name', '-Wl,@loader_path/%{cfg.linktarget.name}' }
 
-   configuration "Release"
-      flags { "Optimize" }
-      targetdir "bin/Release"
+	filter "configurations:Debug*"
+		defines { "DEBUG" }
+		flags { "Symbols" }
+		targetdir "bin/Debug"
+
+	filter "configurations:DebugVerbose"
+		defines { "VERBOSE" }
+
+	filter "configurations:Release"
+		flags { "Optimize" }
+		targetdir "bin/Release"
 
 
 project "Tests"
-    language "C"
-    kind "ConsoleApp"
-    
-    removeconfigurations { "Release" }
+	language "C"
+	kind "ConsoleApp"
 
-    files {
-        "tests/**.h",
-        "tests/**.def",
-        "tests/**.c"
-    }
-    links { "LogDB" }
+	removeconfigurations { "Release" }
 
-    includedirs { "include" }
-    targetdir "bin/Debug"
+	files {
+		"tests/**.h",
+		"tests/**.def",
+		"tests/**.c"
+	}
+	links { "LogDB" }
+
+	includedirs { "include" }
+	targetdir "bin/Debug"
