@@ -1,5 +1,5 @@
 
-#include "logdb_internal.h"
+#include "logdb_connection.h"
 
 #include <stdlib.h>
 #include <sys/file.h>

@@ -1,6 +1,8 @@
 #ifndef LOGDB_INDEX_H
 #define LOGDB_INDEX_H
 
+#include "logdb_internal.h"
+
 /**
  * The suffix applied to the database file name to derive the
  * index file name.

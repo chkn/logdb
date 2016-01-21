@@ -1,5 +1,6 @@
 
-#include "logdb_internal.h"
+#include "logdb_index.h"
+#include "logdb_connection.h"
 
 #include <stdlib.h>
 #include <fcntl.h>
