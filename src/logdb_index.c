@@ -192,9 +192,11 @@ int logdb_index_close_merge (logdb_index_t* index, int dbfd)
 
 	/* Lock the whole index; it will be unlocked when the fd is closed */
 	struct flock flk;
-	memset (&flk, 0, sizeof (flk));
 	flk.l_type = F_WRLCK;
 	flk.l_whence = SEEK_SET;
+	flk.l_start = 0;
+	flk.l_len = 0;
+	flk.l_pid = getpid();
 	if (fcntl (index->fd, F_SETLKW, &flk) == -1) {
 		ELOG("logdb_index_close_merge: fcntl");
 		return -1;

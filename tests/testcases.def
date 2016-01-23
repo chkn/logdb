@@ -13,12 +13,12 @@ TEST(OpenCloseConnection)
 
     conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
     ASSERT(conn);
-    
+
     struct stat stats1;
     ASSERT(!stat ("temp.logdb", &stats1));
- 
+
     ASSERT(!logdb_close(conn));
-    
+
     struct stat stats2;
     ASSERT(!stat ("temp.logdb", &stats2));
 
@@ -34,4 +34,3 @@ TEST(OpenCloseConnection)
     unlink("temp.logdb");
     PASS;
 }
-

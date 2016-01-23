@@ -9,14 +9,14 @@
 /**
  * The magic cookie appearing at byte 0 of the database file.
  */
-#define LOGDB_MAGIC "LOGD"
+#define LOGDB_MAGIC "LDBF"
 
 /**
  * Internal struct that represents the header of the database file.
  */
 typedef struct {
 	char magic[sizeof(LOGDB_MAGIC) - 1]; /* LOGDB_MAGIC */
-	unsigned int version;
+	unsigned short version;
 } logdb_header_t;
 
 /**
@@ -30,12 +30,25 @@ typedef struct {
  * Internal struct that holds the state of a LogDB connection.
  */
 typedef struct {
-	unsigned int version; /**< version of logdb structure. Should equal LOGDB_VERSION */
+	unsigned short version; /**< version of logdb structure. Should equal LOGDB_VERSION */
 	pthread_rwlock_t lock; /**< protects threaded access to this `logdb_connection_t` */
 
 	int fd; /**< file descriptor of database file */
 	logdb_index_t* index; /**< struct containing fd and metadata about the index file */
+	pthread_key_t current_txn_key; /**< tls key for the current transaction for this connection */
 
 } logdb_connection_t;
+
+/**
+ * Verifies the first arg is a valid `logdb_connection_t`, otherwise returns -1
+ * Note this is not meant to be foolproof and should not be passed arbitrary pointers!
+ */
+#define LOGDB_VERIFY_CONNECTION(var, ...) (logdb_connection* conn_arg_ , ##__VA_ARGS__) { \
+	logdb_connection_t* conn_var_; \
+	var = conn_var_ = (logdb_connection_t*)(conn_arg_); \
+	if (!conn_var_ || conn_var_->version != LOGDB_VERSION) { \
+		LOG("%s: failed-- passed connection was either null, already closed, or incorrect version.", __func__); \
+		return -1; \
+	}
 
 #endif /* LOGDB_CONNECTION_H */

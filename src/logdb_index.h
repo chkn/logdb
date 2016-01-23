@@ -17,12 +17,12 @@
 typedef struct {
 	int fd;
 	char* path; /* needed to unlink index */
-	unsigned int len;
+	unsigned int len; /**< number of entries in the index */
 } logdb_index_t;
 
 typedef struct {
 	char magic[sizeof(LOGDB_INDEX_MAGIC) - 1]; /* LOGDB_INDEX_MAGIC */
-	unsigned int version; /* LOGDB_VERSION */
+	unsigned short version; /* LOGDB_VERSION */
 	unsigned int len; /**< number of entries in the index */
 
 	/* len logdb_index_entry_t structs follow */

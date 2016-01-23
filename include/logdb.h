@@ -22,10 +22,11 @@ typedef enum {
 } logdb_open_flags;
 
 /**
- * Opens a new connection to a LogDB database file. Multiple processes can
- *  work with a single database file at once, and multiple threads can share
- *  a single `logdb_connection` without external locking. However, using multiple
- * `logdb_connection`s on the same database file from different threads is not supported.
+ * Opens a connection to a LogDB database file.
+ *  
+ * Multiple processes can open a single database file at once, and multiple threads can share
+ *  a single `logdb_connection` without external locking. However, opening multiple
+ * `logdb_connection`s on the same database file within a single process is not supported.
  * \returns A pointer to the connection data structure, or NULL on failure.
  */
 LOGDB_API logdb_connection* logdb_open (const char* path, logdb_open_flags flags);
@@ -36,6 +37,38 @@ LOGDB_API logdb_connection* logdb_open (const char* path, logdb_open_flags flags
  * \returns Zero (0) on success.
  */
 LOGDB_API int logdb_close (logdb_connection* connection);
+
+/**
+ * Begins a transaction on the given connection for the current thread.
+ * 
+ *  Transactions can be nested by calling `logdb_begin` while there is already
+ *  an active transaction on the given connection for the current thread. No data
+ *  will be written to the database until the outermost transaction is committed.
+ *  If a nested transaction is rolled back, its changes will not be included when
+ *  the outer transaction(s) are committed.
+ * \returns Zero (0) on success.
+ */
+LOGDB_API int logdb_begin (logdb_connection* connection);
+
+/**
+ * Commits the current transaction on the given connection for the current thread.
+ *
+ *  If there is no active transaction on the given connection for the current thread,
+ *   this call fails.
+ *  If there are no active nested transactions on the given connection for the current thread,
+ *   this call causes data to be written to the database.
+ * \returns Zero (0) on success.
+ */
+LOGDB_API int logdb_commit (logdb_connection* connection);
+
+/**
+ * Rolls back the current transaction on the given connection for the current thread.
+ *
+ *  If there is no active transaction on the given connection for the current thread,
+ *   this call fails.
+ * \returns Zero (0) on success.
+ */
+LOGDB_API int logdb_rollback (logdb_connection* connection);
 
 #ifdef __cplusplus
 }

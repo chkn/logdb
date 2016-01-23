@@ -1,5 +1,6 @@
 
 #include "logdb_connection.h"
+#include "logdb_txn.h"
 
 #include <stdlib.h>
 #include <sys/file.h>
@@ -12,6 +13,11 @@
 
 logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 {
+	if (!path) {
+		LOG("logdb_open: path is NULL");
+		return NULL;
+	}
+
 	int oflags = O_RDWR;
 	if ((flags & LOGDB_OPEN_CREATE) == LOGDB_OPEN_CREATE)
 		oflags |= O_CREAT;
@@ -47,6 +53,7 @@ retry_create:
 			/* We can end up here if:
 			 *  1) Another process crashed while creating the index previously.
 			 *  2) The DB was previouly open by other process(es) who all failed to close it.
+			 *  3) Attempting to open a db file that is already opened by this process (not supported)
 			 */
 			 /* FIXME: Determine which of the above cases it is and recover */
 			 close (fd);
@@ -88,21 +95,25 @@ retry_create:
 	}
 	free (indexpath);
 
-	logdb_connection_t* result = malloc (sizeof (logdb_connection_t));
+	logdb_connection_t* result = calloc (1, sizeof (logdb_connection_t));
 	if (!result) {
-		ELOG("logdb_open: malloc");
+		ELOG("logdb_open: calloc");
 		close (fd);
 		return NULL;   
 	}
 
-	/* Zero our memory first, just incase..
-	   N.B. Darwin's `pthread_rwlock_init` seems to check for an existing rwlock structure.
-	    The odds of this causing a problem are very slim, but so is the cost of this memset :p */
-	memset (result, 0, sizeof (logdb_connection_t));
-
 	int err = pthread_rwlock_init (&result->lock, NULL);
 	if (err) {
-		ELOG("logdb_open: pthread_rwlock_init");
+		LOG("logdb_open: pthread_rwlock_init: %s", strerror (err));
+		close (fd);
+		free (result);
+		return NULL;
+	}
+
+	err = pthread_key_create (&result->current_txn_key, &logdb_txn_destruct);
+	if (err) {
+		LOG("logdb_open: pthread_key_create: %s", strerror (err));
+		pthread_rwlock_destroy (&result->lock);
 		close (fd);
 		free (result);
 		return NULL;
@@ -114,19 +125,17 @@ retry_create:
 	return result;
 }
 
-int logdb_close (logdb_connection* connection)
+int logdb_close LOGDB_VERIFY_CONNECTION(logdb_connection_t* conn)
 {
-	logdb_connection_t* conn = (logdb_connection_t*)connection;
-	if (!conn || conn->version != LOGDB_VERSION) {
-		LOG("logdb_close: failed. Passed connection was either null, already closed, or incorrect version.");
-		return -1;
-	}
 	/* Wait for any other threads to finish */
 	int err = pthread_rwlock_wrlock (&conn->lock);
 	if (err) {
 		ELOG("logdb_close: pthread_rwlock_wrlock");
 		return -1;
 	}
+
+	/* FIXME: Actually clean up and roll back any transaction here! */
+	pthread_key_delete (conn->current_txn_key);
 
 	/* If we are the last process using the db, merge the index back into it */
 	bool index_closed = false;
@@ -150,6 +159,6 @@ int logdb_close (logdb_connection* connection)
 	pthread_rwlock_destroy (&conn->lock);
 	/* Just in case this helps.. */
 	conn->version = 0;
-	free (connection);
+	free (conn);
 	return 0;
-}
+}}
