@@ -22,78 +22,78 @@ logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 	if ((flags & LOGDB_OPEN_CREATE) == LOGDB_OPEN_CREATE)
 		oflags |= O_CREAT;
 
-	/* Compute the path for the index file */
-	size_t pathlen = strlen (path) + sizeof (LOGDB_INDEX_FILE_SUFFIX);
-	char* indexpath = malloc (pathlen);
-	if (!indexpath) {
+	/* Compute the path for the log file */
+	size_t pathlen = strlen (path) + sizeof (LOGDB_LOG_FILE_SUFFIX);
+	char* logpath = malloc (pathlen);
+	if (!logpath) {
 		ELOG("logdb_open: malloc");
 		return NULL;
 	}
-	(void)strncpy (indexpath, path, pathlen);
-	(void)strcat (indexpath, LOGDB_INDEX_FILE_SUFFIX);
+	(void)strncpy (logpath, path, pathlen);
+	(void)strcat (logpath, LOGDB_LOG_FILE_SUFFIX);
 
 	/* Open the database first */
 	int fd = open (path, oflags, S_IRUSR | S_IWUSR);
 	if (fd == -1) {
 		ELOG("logdb_open: open");
-		free (indexpath);
+		free (logpath);
 		return NULL;
 	}
 
-	/* If we are the first ones to open this file, we need to create an index.
+	/* If we are the first ones to open this file, we need to create a log.
 	 *  The `flock` prevents races with other processes.
 	 */
 	bool retry = true;
-	logdb_index_t* index = NULL;
+	logdb_log_t* log = NULL;
 retry_create:
 	if (flock (fd, LOCK_EX | LOCK_NB) == 0) {
-		index = logdb_index_create (indexpath, fd);
-		if (!index) {
-			VLOG("logdb_open: failed to create index-- there may be an existing one that needs recovery.");
+		log = logdb_log_create (logpath, fd);
+		if (!log) {
+			VLOG("logdb_open: failed to create log-- there may be an existing one that needs recovery.");
 			/* We can end up here if:
-			 *  1) Another process crashed while creating the index previously.
+			 *  1) Another process crashed while creating the log previously.
 			 *  2) The DB was previouly open by other process(es) who all failed to close it.
 			 *  3) Attempting to open a db file that is already opened by this process (not supported)
 			 */
 			 /* FIXME: Determine which of the above cases it is and recover */
 			 close (fd);
-			 free (indexpath);
+			 free (logpath);
 			 return NULL;
 		}
 	} else {
-		VLOG("logdb_open: failed to acquire exclusive db lock to setup index-- another process must've already done it.");
+		VLOG("logdb_open: failed to acquire exclusive db lock to setup log-- another process must've already done it.");
 	}
 
-	/* Otherwise, we acquire a shared lock to wait for the other process to finish setting up the index.
+	/* Otherwise, we acquire a shared lock to wait for the other process to finish setting up the log.
 	 *  This will go away when we close the fd.
 	 */
 	if (flock (fd, LOCK_SH) != 0) {
 		ELOG("logdb_open: flock");
 		close (fd);
-		free (indexpath);
+		free (logpath);
 		return NULL;
 	}
 
-	/* Open the index if we did not create one earlier */
-	if (!index) {
-		index = logdb_index_open (indexpath);
-		if (!index) {
+	/* Open the log if we did not create one earlier */
+	if (!log) {
+		log = logdb_log_open (logpath);
+		if (!log) {
 			/* We could end up here if another process was doing a `logdb_close`
-			    and merging the index back into the db when we were previously trying
+			    and merging the log back into the db when we were previously trying
 				 to get the exclusive lock. So we'll retry once if we haven't already.
 			*/
 			if (retry) {
-				VLOG("logdb_open: failed to open index after acquiring shared db lock-- trying to create again.");
+				VLOG("logdb_open: failed to open log after acquiring shared db lock-- trying to create again.");
 				retry = false;
 				goto retry_create;
 			}
-			LOG("logdb_open: logdb_index_open failed");
+			LOG("logdb_open: logdb_log_open failed");
 			close (fd);
-			free (indexpath);
+			free (logpath);
 			return NULL;
 		}
 	}
-	free (indexpath);
+	free (logpath);
 
 	logdb_connection_t* result = calloc (1, sizeof (logdb_connection_t));
 	if (!result) {
@@ -121,7 +121,7 @@ retry_create:
 
 	result->version = LOGDB_VERSION;
 	result->fd = fd;
-	result->index = index;
+	result->log = log;
 	return result;
 }
 
@@ -137,17 +137,17 @@ int logdb_close LOGDB_VERIFY_CONNECTION(logdb_connection_t* conn)
 	/* FIXME: Actually clean up and roll back any transaction here! */
 	pthread_key_delete (conn->current_txn_key);
 
-	/* If we are the last process using the db, merge the index back into it */
-	bool index_closed = false;
+	/* If we are the last process using the db, merge the log back into it */
+	bool log_closed = false;
 	if (flock (conn->fd, LOCK_EX | LOCK_NB) == 0) {
-		VLOG("logdb_close: acquired exclusive lock on db file, so merging index back");
-		if (logdb_index_close_merge (conn->index, conn->fd) == 0)
-			index_closed = true;
+		VLOG("logdb_close: acquired exclusive lock on db file, so merging log back");
+		if (logdb_log_close_merge (conn->log, conn->fd) == 0)
+			log_closed = true;
 	}
-	if (!index_closed) {
+	if (!log_closed) {
 		/* Other processes are still using it, so just close it, leaving the file there */
-		if (logdb_index_close (conn->index) != 0) {
-			LOG("logdb_close: logdb_index_close failed");
+		if (logdb_log_close (conn->log) != 0) {
+			LOG("logdb_close: logdb_log_close failed");
 			flock (conn->fd, LOCK_UN);
 			pthread_rwlock_unlock (&conn->lock);
 			return -1;

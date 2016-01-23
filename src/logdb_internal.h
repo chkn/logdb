@@ -13,7 +13,7 @@
 
 /**
  * The size of the database file sections that are reserved
- * in the index file.
+ * in the log file.
  */
 #define LOGDB_SECTION_SIZE 65536 /* bytes */
 
@@ -25,7 +25,7 @@
 /**
  * The minimum size for a valid database file
  */
-#define LOGDB_MIN_SIZE (sizeof(logdb_header_t) + sizeof(logdb_index_header_t) + sizeof(logdb_trailer_t))
+#define LOGDB_MIN_SIZE (sizeof(logdb_header_t) + sizeof(logdb_log_header_t) + sizeof(logdb_trailer_t))
 
 #define NULL ((void*)0)
 

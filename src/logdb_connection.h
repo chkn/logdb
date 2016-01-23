@@ -2,7 +2,7 @@
 #define LOGDB_CONNECTION_H
 
 #include "logdb_internal.h"
-#include "logdb_index.h"
+#include "logdb_log.h"
 
 #include <pthread.h>
 
@@ -23,7 +23,7 @@ typedef struct {
  * Internal struct that represents the trailer of the database file.
  */
 typedef struct {
-	unsigned int index_offset; /**< offset from the end of the db where the index starts */
+	unsigned int log_offset; /**< offset from the end of the db where the log starts */
 } logdb_trailer_t;
 
 /**
@@ -34,7 +34,7 @@ typedef struct {
 	pthread_rwlock_t lock; /**< protects threaded access to this `logdb_connection_t` */
 
 	int fd; /**< file descriptor of database file */
-	logdb_index_t* index; /**< struct containing fd and metadata about the index file */
+	logdb_log_t* log; /**< struct containing fd and metadata about the log file */
 	pthread_key_t current_txn_key; /**< tls key for the current transaction for this connection */
 
 } logdb_connection_t;
