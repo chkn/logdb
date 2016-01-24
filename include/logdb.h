@@ -57,6 +57,9 @@ LOGDB_API int logdb_begin (logdb_connection* connection);
  *   this call fails.
  *  If there are no active nested transactions on the given connection for the current thread,
  *   this call causes data to be written to the database.
+ *
+ *  If this function fails, the current transaction is left uncommitted. Either retry the commit
+ *   by calling this function again, or call `logdb_rollback`.
  * \returns Zero (0) on success.
  */
 LOGDB_API int logdb_commit (logdb_connection* connection);
@@ -65,7 +68,7 @@ LOGDB_API int logdb_commit (logdb_connection* connection);
  * Rolls back the current transaction on the given connection for the current thread.
  *
  *  If there is no active transaction on the given connection for the current thread,
- *   this call fails.
+ *   this call fails. This is the only failure mode for this function.
  * \returns Zero (0) on success.
  */
 LOGDB_API int logdb_rollback (logdb_connection* connection);

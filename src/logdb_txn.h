@@ -2,6 +2,7 @@
 #define LOGDB_TXN_H
 
 #include "logdb_internal.h"
+#include "logdb_connection.h"
 #include "logdb_lease.h"
 
 /**
@@ -16,7 +17,25 @@ typedef struct logdb_txn_t {
 } logdb_txn_t;
 
 /**
- * If the passed pointer is not NULL, cause the transaction to which it refers
+ * Begins a new implicit transaction.
+ *  The returned transaction is not set in tls, so it must
+ *  be committed with `logdb_txn_commit` before control
+ *  returns to user code.
+ * \returns the transaction, or NULL on failure.
+ */
+logdb_txn_t* logdb_txn_begin_implicit (logdb_connection_t* conn);
+
+/** Returns the current transaction in tls or null */
+logdb_txn_t* logdb_txn_current (logdb_connection_t* conn);
+
+/**
+ * Commits the given transaction.
+ * \returns Zero (0) on success.
+ */
+int logdb_txn_commit (logdb_txn_t* txn);
+
+/**
+ * If the passed pointer is not NULL, causes the transaction to which it refers
  *  to roll back.
  */
 void logdb_txn_destruct (void* current_txn);

@@ -34,3 +34,25 @@ TEST(OpenCloseConnection)
     unlink("temp.logdb");
     PASS;
 }
+
+TEST(TransactionBeginRollback)
+{
+    logdb_connection* conn;
+
+    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
+    ASSERT(conn);
+
+    /* No active transaction; should not be able to rollback */
+    ASSERT(logdb_rollback (conn) != 0);
+
+    ASSERT(logdb_begin (conn) == 0);
+    ASSERT(logdb_rollback (conn) == 0);
+
+    /* No active transaction; should not be able to rollback */
+    ASSERT(logdb_rollback (conn) != 0);
+    
+    ASSERT(!logdb_close(conn));
+    
+    unlink("temp.logdb");
+    PASS;
+}

@@ -134,7 +134,8 @@ int logdb_close LOGDB_VERIFY_CONNECTION(logdb_connection_t* conn)
 		return -1;
 	}
 
-	/* FIXME: Actually clean up and roll back any transaction here! */
+	/* If there is an active transaction on this thread, roll it back */
+	logdb_rollback (conn);
 	pthread_key_delete (conn->current_txn_key);
 
 	/* If we are the last process using the db, merge the log back into it */
