@@ -19,7 +19,15 @@ static logdb_log_t* logdb_log_new (int fd, const char* path, logdb_log_header_t*
 {
 	logdb_log_t* result = malloc (sizeof (logdb_log_t));
 	if (!result) {
-		ELOG("logdb_log_new: malloc (sizeof (logdb_log_t)) failed");
+		ELOG("logdb_log_new: malloc");
+		return NULL;
+	}
+
+	int lockbytes = (int)ceil ((float)(header->len) / 8);
+	result->lock = calloc (1, lockbytes);
+	if (!(result->lock)) {
+		ELOG("logdb_log_new: calloc");
+		free (result);
 		return NULL;
 	}
 
@@ -103,20 +111,20 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		VLOG("logdb_log_create: reading log from end of db");
 
 		if (lseek (dbfd, -sizeof(logdb_trailer_t), SEEK_END) == -1) {
-			ELOG("logdb_log_create: lseek (dbfd, -sizeof(logdb_trailer_t), SEEK_END) failed");
+			ELOG("logdb_log_create: lseek");
 			return NULL;
 		}
 
 		logdb_trailer_t trailer;
 		if (read (dbfd, &trailer, sizeof(logdb_trailer_t)) == -1) {
-			ELOG("logdb_log_create: read (dbfd, &trailer, sizeof(logdb_trailer_t)) failed");
+			ELOG("logdb_log_create: read");
 			return NULL;
 		}
 
 		/* FIXME: This could overflow, causing us not to find the log in the db, causing us to lose all data :( */
 		signed int offs = trailer.log_offset * -1;
 		if (lseek (dbfd, offs, SEEK_END) == -1) {
-			ELOG("logdb_log_create: lseek (dbfd, offs, SEEK_END) failed");
+			ELOG("logdb_log_create: lseek");
 			return NULL;
 		}
 
@@ -132,7 +140,7 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		if (sections < LOGDB_PREALLOCATE) {
 			sections = LOGDB_PREALLOCATE;
 			if (ftruncate (dbfd, LOGDB_PREALLOCATE * LOGDB_SECTION_SIZE) != 0) {
-				ELOG("logdb_log_create: ftruncate (dbfd, LOGDB_PREALLOCATE * LOGDB_SECTION_SIZE) failed");
+				ELOG("logdb_log_create: ftruncate");
 				return NULL;
 			}
 		}
@@ -140,7 +148,7 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		size_t entrysize = sections * LOGDB_SECTION_SIZE;
 		header = malloc (sizeof (logdb_log_header_t) + entrysize);
 		if (!header) {
-			ELOG("logdb_log_create: malloc (sizeof (logdb_log_header_t) + entrysize) failed");
+			ELOG("logdb_log_create: malloc");
 			return NULL;
 		}
 
@@ -152,14 +160,14 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 
 	int logfd = open (path, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
 	if (logfd == -1) {
-		LOG("logdb_log_create: open(\"%s\", O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR) failed: %s", path, strerror(errno));
+		ELOG("logdb_log_create: open");
 		free (header);
 		return NULL;
 	}
 
 	size_t logsz = sizeof (logdb_log_header_t) + (header->len * sizeof (logdb_log_entry_t));
 	if (write (logfd, header, logsz) < logsz) {
-		ELOG("logdb_log_create: write (logfd, result, logsz) failed");
+		ELOG("logdb_log_create: write");
 		free (header);
 		close (logfd);
 		return NULL;

@@ -46,7 +46,7 @@ typedef struct {
 #define LOGDB_VERIFY_CONNECTION(var, ...) (logdb_connection* conn_arg_ , ##__VA_ARGS__) { \
 	logdb_connection_t* conn_var_; \
 	var = conn_var_ = (logdb_connection_t*)(conn_arg_); \
-	if (!conn_var_ || conn_var_->version != LOGDB_VERSION) { \
+	DBGIF(!conn_var_ || conn_var_->version != LOGDB_VERSION) { \
 		LOG("%s: failed-- passed connection was either null, already closed, or incorrect version.", __func__); \
 		return -1; \
 	}

@@ -56,3 +56,24 @@ TEST(TransactionBeginRollback)
     unlink("temp.logdb");
     PASS;
 }
+
+TEST(Put1)
+{
+    logdb_connection* conn;
+
+    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
+    ASSERT(conn);
+
+    logdb_buffer* key = logdb_buffer_new_direct ("hello", 5, NULL);
+    logdb_buffer* val = logdb_buffer_new_direct ("world", 5, NULL);
+
+
+    ASSERT(!logdb_put (conn, key, val));
+
+    logdb_buffer_free (key);
+    logdb_buffer_free (val);
+    ASSERT(!logdb_close(conn));
+
+    unlink("temp.logdb");
+    PASS;
+}

@@ -53,7 +53,6 @@ retry_create:
 			/* We can end up here if:
 			 *  1) Another process crashed while creating the log previously.
 			 *  2) The DB was previouly open by other process(es) who all failed to close it.
-			 *  3) Attempting to open a db file that is already opened by this process (not supported)
 			 */
 			 /* FIXME: Determine which of the above cases it is and recover */
 			 close (fd);
@@ -98,31 +97,32 @@ retry_create:
 	logdb_connection_t* result = calloc (1, sizeof (logdb_connection_t));
 	if (!result) {
 		ELOG("logdb_open: calloc");
-		close (fd);
-		return NULL;   
+		goto logclosefail;
 	}
 
 	int err = pthread_rwlock_init (&result->lock, NULL);
 	if (err) {
 		LOG("logdb_open: pthread_rwlock_init: %s", strerror (err));
-		close (fd);
 		free (result);
-		return NULL;
+		goto logclosefail;
 	}
 
 	err = pthread_key_create (&result->current_txn_key, &logdb_txn_destruct);
 	if (err) {
 		LOG("logdb_open: pthread_key_create: %s", strerror (err));
 		pthread_rwlock_destroy (&result->lock);
-		close (fd);
 		free (result);
-		return NULL;
+		goto logclosefail;
 	}
 
 	result->version = LOGDB_VERSION;
 	result->fd = fd;
 	result->log = log;
 	return result;
+logclosefail:
+	logdb_log_close (log);
+	close (fd);
+	return NULL;
 }
 
 int logdb_close LOGDB_VERIFY_CONNECTION(logdb_connection_t* conn)
@@ -130,12 +130,12 @@ int logdb_close LOGDB_VERIFY_CONNECTION(logdb_connection_t* conn)
 	/* Wait for any other threads to finish */
 	int err = pthread_rwlock_wrlock (&conn->lock);
 	if (err) {
-		ELOG("logdb_close: pthread_rwlock_wrlock");
+		LOG("logdb_close: pthread_rwlock_wrlock: %s", strerror(err));
 		return -1;
 	}
 
-	/* If there is an active transaction on this thread, roll it back */
-	logdb_rollback (conn);
+	/* If there is an active transactions on this thread, roll them back */
+	logdb_txn_rollback_all (conn);
 	pthread_key_delete (conn->current_txn_key);
 
 	/* If we are the last process using the db, merge the log back into it */

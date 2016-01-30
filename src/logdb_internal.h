@@ -34,6 +34,7 @@ typedef enum { false, true } bool;
 /* Setup logging macros */
 #ifdef DEBUG
 #  include <stdio.h>
+#  define DBGIF(...) if(__VA_ARGS__)
 #  ifndef LOG
 #    define LOG(fmt, ...) fprintf(stderr, fmt "\n", ##__VA_ARGS__)
 #  endif
@@ -48,6 +49,7 @@ typedef enum { false, true } bool;
 #    endif
 #  endif
 #else
+#  define DBGIF(...) if(0)
 #  define LOG(fmt, ...)
 #  define ELOG(str)
 #  define VLOG(fmt, ...)

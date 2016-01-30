@@ -18,6 +18,13 @@ typedef struct {
 	int fd;
 	char* path; /* needed to unlink log */
 	unsigned int len; /**< number of entries in the log */
+
+	/**
+	 * A bitfield lock, with each bit representing an entry of the
+	 * log. If the bit is set to 1, that section is locked by some
+	 * thread in this process.
+	 */
+	volatile void* lock;
 } logdb_log_t;
 
 typedef struct {
