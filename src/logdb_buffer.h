@@ -8,7 +8,7 @@
  */
 typedef struct logdb_buffer_t {
 	void* data;
-	size_t len;
+	logdb_size_t len;
 	dispose_func disposer; /**< disposer for data ptr, or null */
 	struct logdb_buffer_t* next; /**< next buffer in the linked list, or null */
 	volatile int refcnt; /**< reference count */

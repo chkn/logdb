@@ -14,23 +14,41 @@
  */
 #define LOGDB_LOG_MAGIC "LDBL"
 
+/**
+ * Internal structure representing a reader/writer lock on
+ *  entries in the log file.
+ *
+ * Although we use `fcntl` locks to lock the relevant portions of
+ *  the file, these apply across the whole process. Thus, we need
+ *  to roll our own to protect multithreaded access.
+ */
+typedef struct logdb_log_lock_t {
+	/**
+	 * A set of locks. Index 0 corresponds to the last index entry,
+	 *  counting up corresponding to earlier index entries.
+	 *
+	 * For each entry, 0 indicates no lock is taken, a positive value
+	 *  indicates the number of read locks taken, and -1 indicates a
+	 *  write lock is taken.
+	 */
+	int locks[256];
+
+	/**
+	 * If we run out of locks above, we simply append another structure here.
+	 */
+	struct logdb_log_lock_t* next;
+} logdb_log_lock_t;
+
 typedef struct {
 	int fd;
 	char* path; /* needed to unlink log */
-	unsigned int len; /**< number of entries in the log */
-
-	/**
-	 * A bitfield lock, with each bit representing an entry of the
-	 * log. If the bit is set to 1, that section is locked by some
-	 * thread in this process.
-	 */
-	volatile void* lock;
+	volatile logdb_log_lock_t* lock;
 } logdb_log_t;
 
 typedef struct {
 	char magic[sizeof(LOGDB_LOG_MAGIC) - 1]; /* LOGDB_LOG_MAGIC */
 	unsigned short version; /* LOGDB_VERSION */
-	unsigned int len; /**< number of entries in the log */
+	logdb_size_t len; /**< number of entries in the log */
 
 	/* len logdb_log_entry_t structs follow */
 } logdb_log_header_t;

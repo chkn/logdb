@@ -14,16 +14,7 @@ TEST(OpenCloseConnection)
     conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
     ASSERT(conn);
 
-    struct stat stats1;
-    ASSERT(!stat ("temp.logdb", &stats1));
-
     ASSERT(!logdb_close(conn));
-
-    struct stat stats2;
-    ASSERT(!stat ("temp.logdb", &stats2));
-
-    /* Ensure the index mergeback doesn't increase file size */
-    ASSERT(stats1.st_size == stats2.st_size);
 
     /* We should be able to open it again, no problemo */
     conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);

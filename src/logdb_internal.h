@@ -18,11 +18,6 @@
 #define LOGDB_SECTION_SIZE 65536 /* bytes */
 
 /**
- * The number of sections to preallocate in the database file.
- */
-#define LOGDB_PREALLOCATE 4 /* sections */
-
-/**
  * The minimum size for a valid database file
  */
 #define LOGDB_MIN_SIZE (sizeof(logdb_header_t) + sizeof(logdb_log_header_t) + sizeof(logdb_trailer_t))

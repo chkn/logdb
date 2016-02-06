@@ -1,6 +1,7 @@
 
 #include "logdb_log.h"
 #include "logdb_connection.h"
+#include "logdb_io.h"
 
 #include <stdlib.h>
 #include <fcntl.h>
@@ -23,7 +24,9 @@ static logdb_log_t* logdb_log_new (int fd, const char* path, logdb_log_header_t*
 		return NULL;
 	}
 
-	int lockbytes = (int)ceil ((float)(header->len) / 8);
+	unsigned int lockbytes = (unsigned int)ceil ((float)(header->len) / 8);
+	if (lockbytes < 1)
+		lockbytes = 1;
 	result->lock = calloc (1, lockbytes);
 	if (!(result->lock)) {
 		ELOG("logdb_log_new: calloc");
@@ -33,7 +36,6 @@ static logdb_log_t* logdb_log_new (int fd, const char* path, logdb_log_header_t*
 
 	result->fd = fd;
 	result->path = realpath (path, NULL);
-	result->len = header->len;
 	return result;
 }
 
@@ -43,35 +45,29 @@ static logdb_log_t* logdb_log_new (int fd, const char* path, logdb_log_header_t*
  */
 static logdb_log_header_t* logdb_log_read (int fd, bool entire)
 {
-	logdb_log_header_t* header = malloc (sizeof (logdb_log_header_t));
-	if (read (fd, header, sizeof (logdb_log_header_t)) < sizeof (logdb_log_header_t)) {
-		ELOG("logdb_log_read: read (fd, header, sizeof (logdb_log_header_t)) failed");
-		free (header);
+	logdb_log_header_t header;
+	if (logdb_io_read (fd, &header, sizeof (logdb_log_header_t)) != 0) {
+		ELOG("logdb_log_read: read (fd, &header, sizeof (logdb_log_header_t)) failed");
 		return NULL;
 	}
 
 	/* Validate the header */
-	if ((memcmp (header->magic, LOGDB_LOG_MAGIC, sizeof (LOGDB_LOG_MAGIC) - 1) != 0)
-	 || (header->version != LOGDB_VERSION)) {
+	if ((memcmp (&header.magic, LOGDB_LOG_MAGIC, sizeof (LOGDB_LOG_MAGIC) - 1) != 0)
+	 || (header.version != LOGDB_VERSION)) {
 		LOG("logdb_log_read: failed to validate log header");
-		free (header);
 		return NULL;
 	}
 
-	if (!entire)
-		return header;
+	size_t entrysize = entire? (header.len * sizeof (logdb_log_entry_t)) : 0;
 
 	/* Build the log */
-	size_t entrysize = header->len * sizeof (logdb_log_entry_t);
 	logdb_log_header_t* result = malloc (sizeof (logdb_log_header_t) + entrysize);
 	if (!result) {
 		ELOG("logdb_log_read: malloc (sizeof (logdb_log_header_t) + entrysize) failed");
-		free (header);
 		return NULL;
 	}
-	memcpy (result, header, sizeof (logdb_log_header_t));
-	free (header);
-	if (read (fd, result + 1, entrysize) < entrysize) {
+	memcpy (result, &header, sizeof (logdb_log_header_t));
+	if (logdb_io_read (fd, result + 1, entrysize) != 0) {
 		ELOG("logdb_log_read: read (fd, result + 1, entrysize) failed");
 		free (result);
 		return NULL;
@@ -82,7 +78,7 @@ static logdb_log_header_t* logdb_log_read (int fd, bool entire)
 
 logdb_log_t* logdb_log_open (const char* path)
 {
-	int fd = open (path, O_RDWR);
+	int fd = open (path, O_RDWR | O_APPEND);
 	if (fd == -1) {
 		LOG("logdb_log_open: open(\"%s\", O_RDWR) failed: %s", path, strerror(errno));
 		return NULL;
@@ -107,7 +103,7 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 	}
 
 	/* First, see if there is an existing log at the end of the db */
-	if (dbstat.st_size > LOGDB_MIN_SIZE) {
+	if (dbstat.st_size >= LOGDB_MIN_SIZE) {
 		VLOG("logdb_log_create: reading log from end of db");
 
 		if (lseek (dbfd, -sizeof(logdb_trailer_t), SEEK_END) == -1) {
@@ -116,13 +112,13 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		}
 
 		logdb_trailer_t trailer;
-		if (read (dbfd, &trailer, sizeof(logdb_trailer_t)) == -1) {
+		if (logdb_io_read (dbfd, &trailer, sizeof(logdb_trailer_t)) != 0) {
 			ELOG("logdb_log_create: read");
 			return NULL;
 		}
 
 		/* FIXME: This could overflow, causing us not to find the log in the db, causing us to lose all data :( */
-		signed int offs = trailer.log_offset * -1;
+		off_t offs = ((off_t)trailer.log_offset) * -1;
 		if (lseek (dbfd, offs, SEEK_END) == -1) {
 			ELOG("logdb_log_create: lseek");
 			return NULL;
@@ -135,17 +131,9 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 	if (!header) {
 		VLOG("logdb_log_create: db does not contain a log");
 
-		/* Determine number of sections in the db; preallocate more if necessary */
+		/* Determine number of sections in the db, and thus the size of the log */
 		off_t sections = (off_t)ceil (dbstat.st_size / LOGDB_SECTION_SIZE);
-		if (sections < LOGDB_PREALLOCATE) {
-			sections = LOGDB_PREALLOCATE;
-			if (ftruncate (dbfd, LOGDB_PREALLOCATE * LOGDB_SECTION_SIZE) != 0) {
-				ELOG("logdb_log_create: ftruncate");
-				return NULL;
-			}
-		}
-
-		size_t entrysize = sections * LOGDB_SECTION_SIZE;
+		size_t entrysize = sections * sizeof (logdb_log_entry_t);
 		header = malloc (sizeof (logdb_log_header_t) + entrysize);
 		if (!header) {
 			ELOG("logdb_log_create: malloc");
@@ -158,18 +146,19 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		memset (header + 1, 0, entrysize);
 	}
 
-	int logfd = open (path, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+	int logfd = open (path, O_RDWR | O_CREAT | O_EXCL | O_APPEND, S_IRUSR | S_IWUSR);
 	if (logfd == -1) {
 		ELOG("logdb_log_create: open");
 		free (header);
 		return NULL;
 	}
 
-	size_t logsz = sizeof (logdb_log_header_t) + (header->len * sizeof (logdb_log_entry_t));
-	if (write (logfd, header, logsz) < logsz) {
+	if (logdb_io_write (logfd, header, logdb_log_size (header)) != 0) {
 		ELOG("logdb_log_create: write");
 		free (header);
 		close (logfd);
+		/* don't leave a partially written log laying around */
+		unlink (path);
 		return NULL;
 	}
 
@@ -242,11 +231,11 @@ int logdb_log_close_merge (logdb_log_t* log, int dbfd)
 
 	logdb_trailer_t trailer;
 	trailer.log_offset = reqspace;
-	if ((write (dbfd, header, headersz) < headersz) || (write (dbfd, &trailer, sizeof (trailer)) < sizeof (trailer))) {
+	if (logdb_io_write (dbfd, header, headersz) || logdb_io_write (dbfd, &trailer, sizeof (trailer))) {
 		/* NOTE: The is no possibility of corrupting the db here, because the
 		    log file still shows these bytes as free.
 		*/
-		ELOG("logdb_log_close_merge: write(s) failed");
+		ELOG("logdb_log_close_merge: write(s)");
 		goto failunlock;
 	}
 

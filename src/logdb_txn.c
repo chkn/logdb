@@ -1,6 +1,7 @@
 
 #include "logdb_txn.h"
 #include "logdb_data.h"
+#include "logdb_lease.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -38,8 +39,6 @@ static void logdb_txn_close (logdb_connection_t* conn, logdb_txn_t* txn)
 		logdb_txn_set_current (conn, txn->outer);
 	} else if (txn->outer) {
 		logdb_txn_close (NULL, txn->outer);
-	} else {
-		logdb_txn_set_current (conn, NULL);
 	}
 	if (txn->buf)
 		logdb_buffer_free (txn->buf);
@@ -55,16 +54,18 @@ static int logdb_txn_commit (logdb_connection_t* conn, logdb_txn_t* txn)
 
 	/* If this is not the outer transaction, then merge our data
 	    into the outer transaction */
-	if ((txn->outer) && (txn->buf)) {
-		txn->outer->buf = logdb_buffer_append (txn->outer->buf, txn->buf);
+	if (txn->outer) {
+		if (txn->buf)
+			txn->outer->buf = logdb_buffer_append (txn->outer->buf, txn->buf);
 		goto closereturn;
 	}
 
+	/* Acquire a lease to write this data */
+	logdb_lease_t lease;
+	if (logdb_lease_acquire (&lease, conn) != 0)
+		return -1;
 
-	
-
-	
-
+	logdb_lease_release (&lease);
 closereturn:
 	logdb_txn_close (conn, txn);
 	return 0;

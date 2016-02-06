@@ -11,6 +11,11 @@ extern "C" {
 #define LOGDB_API
 #endif
 
+/**
+ * The type used for offsets and sizes in the logdb format.
+ */
+typedef unsigned int logdb_size_t;
+
 /* CONNECTIONS */
 
 /** An opaque data structure representing a LogDB connection. */
@@ -18,10 +23,17 @@ typedef void logdb_connection;
 
 /** Flags that can be passed to `logdb_open`. Can be combined with bitwise OR. */
 typedef enum {
-	/** Open an existing file */
+	/**
+	 * Open an existing file.
+	 *  If `LOGDB_OPEN_CREATE` is not specified, `logdb_open` will fail if the existing
+	 *  file is not a valid LogDB database.
+	 */
 	LOGDB_OPEN_EXISTING = 0,
 
-	/** Create the file if it doesn't exist */
+	/**
+	 * Create the file if it doesn't exist.
+	 *  If a file does exist but it is not a valid LogDB database, it is overwritten.
+	 */
 	LOGDB_OPEN_CREATE = 1
 } logdb_open_flags;
 
@@ -63,7 +75,7 @@ typedef void (*dispose_func)(void*);
  * \param disposer A function that will be called to free the data pointed to by the `data` pointer, or NULL.
  * \returns A pointer to the new buffer object, or NULL on failure.
  */
-LOGDB_API logdb_buffer* logdb_buffer_new_direct (void* data, size_t length, dispose_func disposer);
+LOGDB_API logdb_buffer* logdb_buffer_new_direct (void* data, logdb_size_t length, dispose_func disposer);
 
 /**
  * Allocates a new buffer with a copy of the given data.
@@ -72,13 +84,13 @@ LOGDB_API logdb_buffer* logdb_buffer_new_direct (void* data, size_t length, disp
  * \param length The length of the data pointed to by the `data` pointer.
  * \returns A pointer to the new buffer object, or NULL on failure.
  */
-LOGDB_API logdb_buffer* logdb_buffer_new_copy (void* data, size_t length);
+LOGDB_API logdb_buffer* logdb_buffer_new_copy (void* data, logdb_size_t length);
 
 /**
  * Returns the total length of all data pointed to by this buffer.
  * \returns Total length, or 0 if `buffer` is NULL.
  */
-LOGDB_API size_t logdb_buffer_length (const logdb_buffer* buffer);
+LOGDB_API logdb_size_t logdb_buffer_length (const logdb_buffer* buffer);
 
 /**
  * Appends the second buffer to the first buffer.

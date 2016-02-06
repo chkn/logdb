@@ -1,6 +1,7 @@
 
 #include "logdb_connection.h"
 #include "logdb_txn.h"
+#include "logdb_io.h"
 
 #include <stdlib.h>
 #include <sys/file.h>
@@ -38,6 +39,41 @@ logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 		ELOG("logdb_open: open");
 		free (logpath);
 		return NULL;
+	}
+
+	/* If LOGDB_OPEN_CREATE was specified, write a db header, otherwise we need to verify the db header */
+	if ((flags & LOGDB_OPEN_CREATE) == LOGDB_OPEN_CREATE) {
+		VLOG("logdb_open: writing db header");
+
+		logdb_header_t header;
+		strcpy (header.magic, LOGDB_MAGIC);
+		header.version = LOGDB_VERSION;
+
+		if (logdb_io_write (fd, &header, sizeof (header)) != 0) {
+			ELOG("logdb_open: write");
+			close (fd);
+			free (logpath);
+			return NULL;
+		}
+	} else {
+		VLOG("logdb_open: verifying db header");
+
+		logdb_header_t header;
+		if (logdb_io_read (fd, &header, sizeof (header)) != 0) {
+			ELOG("logdb_open: read");
+			close (fd);
+			free (logpath);
+			return NULL;
+		}
+
+		/* Validate the header */
+		if ((memcmp (&header.magic, LOGDB_MAGIC, sizeof (LOGDB_MAGIC) - 1) != 0)
+			|| (header.version != LOGDB_VERSION)) {
+			LOG("logdb_open: failed to validate db header");
+			close (fd);
+			free (logpath);
+			return NULL;
+		}
 	}
 
 	/* If we are the first ones to open this file, we need to create a log.

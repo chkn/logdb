@@ -5,7 +5,7 @@
 #include <string.h>
 #include <libkern/OSAtomic.h>
 
-logdb_buffer* logdb_buffer_new_direct (void* data, size_t length, dispose_func disposer)
+logdb_buffer* logdb_buffer_new_direct (void* data, logdb_size_t length, dispose_func disposer)
 {
 	DBGIF(!data) {
 		LOG("logdb_buffer_new_direct: data is NULL");
@@ -26,7 +26,7 @@ logdb_buffer* logdb_buffer_new_direct (void* data, size_t length, dispose_func d
 	return buf;
 }
 
-logdb_buffer* logdb_buffer_new_copy (void* data, size_t length)
+logdb_buffer* logdb_buffer_new_copy (void* data, logdb_size_t length)
 {
 	DBGIF(!data) {
 		LOG("logdb_buffer_new_copy: data is NULL");
@@ -45,9 +45,9 @@ logdb_buffer* logdb_buffer_new_copy (void* data, size_t length)
 	return result;
 }
 
-size_t logdb_buffer_length (const logdb_buffer* buffer)
+logdb_size_t logdb_buffer_length (const logdb_buffer* buffer)
 {
-	size_t len = 0;
+	logdb_size_t len = 0;
 	logdb_buffer_t* buf = (logdb_buffer_t*)buffer;
 	while (buf) {
 		len += buf->len;
@@ -58,10 +58,18 @@ size_t logdb_buffer_length (const logdb_buffer* buffer)
 
 logdb_buffer* logdb_buffer_append (logdb_buffer* buffer1, logdb_buffer* buffer2)
 {
-	if (!buffer2 || (buffer1 == buffer2))
+	DBGIF(!buffer2 || (buffer1 == buffer2)) {
+		LOG("logdb_buffer_append: buffer2 is NULL or equal to buffer1");
 		return NULL;
+	}
 	if (!buffer1)
 		return buffer2;
+
+	/* Check if the resulting buffer overflows logdb_size_t */
+	if ((((logdb_size_t)~0) - logdb_buffer_length (buffer1)) < logdb_buffer_length (buffer2)) {
+		LOG("logdb_buffer_append: overflow");
+		return NULL;
+	}
 
 	logdb_buffer_t* buf = (logdb_buffer_t*)buffer1;
 	while (buf->next) {

@@ -23,7 +23,7 @@ typedef struct {
  * Internal struct that represents the trailer of the database file.
  */
 typedef struct {
-	unsigned int log_offset; /**< offset from the end of the db where the log starts */
+	logdb_size_t log_offset; /**< offset from the end of the db where the log starts */
 } logdb_trailer_t;
 
 /**
