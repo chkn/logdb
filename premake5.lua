@@ -1,3 +1,4 @@
+require 'configure'
 
 solution "LogDB"
 	configurations { "Debug", "DebugVerbose", "Release" }

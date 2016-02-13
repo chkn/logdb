@@ -40,6 +40,12 @@ typedef struct {
 } logdb_connection_t;
 
 /**
+ * Returns the offset in the file database corresponding to the
+ *  given section index.
+ */
+off_t logdb_connection_offset (logdb_size_t index);
+
+/**
  * Verifies the first arg is a valid `logdb_connection_t`, otherwise returns -1
  * Note this is not meant to be foolproof and should not be passed arbitrary pointers!
  */

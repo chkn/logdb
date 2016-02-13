@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
 
 static logdb_txn_t* logdb_txn_current (logdb_connection_t* conn)
 {
@@ -62,9 +63,38 @@ static int logdb_txn_commit (logdb_connection_t* conn, logdb_txn_t* txn)
 
 	/* Acquire a lease to write this data */
 	logdb_lease_t lease;
-	if (logdb_lease_acquire (&lease, conn) != 0)
+	if (logdb_lease_acquire_write (&lease, conn, len) != 0)
 		return -1;
 
+	/* Write the data */
+	logdb_buffer_t* buf = txn->buf;
+	do {
+		if (logdb_lease_write (&lease, buf->data, buf->len) != 0) {
+			logdb_lease_release (&lease);
+			return -1;
+		}
+		buf = buf->next;
+	} while (buf);
+
+	if (fsync (conn->fd) == -1) {
+		ELOG("logdb_txn_commit: fsync 1");
+		logdb_lease_release (&lease);
+		return -1;
+	}
+
+	/* Update and fsync the log */
+	logdb_log_entry_t entry;
+	entry.len = lease.offset;
+	if (logdb_log_write_entry (conn->log, &entry, lease.index) != 0) {
+		/* FIXME: There *might* be a slim chance we've corrupted the log here. */
+		logdb_lease_release (&lease);
+		return -1;
+	}
+
+	/* I don't think there's really much we can do if this fails */ 
+	(void)fsync (conn->log->fd);
+
+	/* Release the lease */
 	logdb_lease_release (&lease);
 closereturn:
 	logdb_txn_close (conn, txn);

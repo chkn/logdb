@@ -12,6 +12,11 @@
 #include <string.h>
 #include <pthread.h>
 
+off_t logdb_connection_offset (logdb_size_t index)
+{
+	return sizeof (logdb_header_t) + (index * LOGDB_SECTION_SIZE);
+}
+
 logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 {
 	if (!path) {

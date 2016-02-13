@@ -10,13 +10,23 @@
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
+#include <libkern/OSAtomic.h>
 
-static size_t logdb_log_size (logdb_log_header_t* header)
+static off_t logdb_log_offset (logdb_size_t index)
 {
-	return sizeof (logdb_log_header_t) + (header->len * sizeof (logdb_log_entry_t));
+	return sizeof (logdb_log_header_t) + (index * sizeof (logdb_log_entry_t));
 }
 
-static logdb_log_t* logdb_log_new (int fd, const char* path, logdb_log_header_t* header)
+logdb_size_t logdb_log_index_from_offset (off_t offset)
+{
+	/* FIXME */
+	if (offset < sizeof (logdb_log_header_t))
+		return 0;
+
+	return (logdb_size_t)((offset - sizeof (logdb_log_header_t)) / sizeof (logdb_log_entry_t));
+}
+
+static logdb_log_t* logdb_log_new (int fd, const char* path)
 {
 	logdb_log_t* result = malloc (sizeof (logdb_log_t));
 	if (!result) {
@@ -24,30 +34,26 @@ static logdb_log_t* logdb_log_new (int fd, const char* path, logdb_log_header_t*
 		return NULL;
 	}
 
-	unsigned int lockbytes = (unsigned int)ceil ((float)(header->len) / 8);
-	if (lockbytes < 1)
-		lockbytes = 1;
-	result->lock = calloc (1, lockbytes);
-	if (!(result->lock)) {
-		ELOG("logdb_log_new: calloc");
-		free (result);
-		return NULL;
-	}
-
 	result->fd = fd;
 	result->path = realpath (path, NULL);
+	result->lock = NULL;
 	return result;
 }
 
+typedef enum {
+	LOGDB_VALIDATE_ONLY,
+	LOGDB_READ_NO_TRAILER,
+	LOGDB_READ_HAS_TRAILER
+} logdb_log_read_mode;
 /**
  * Reads the log at the current position of the given fd.
- *  The returned pointer must be freed with `free`
+ *  Unless `onlyvalidate` is true, the returned pointer must be freed with `free`
  */
-static logdb_log_header_t* logdb_log_read (int fd, bool entire)
+static logdb_log_header_t* logdb_log_read (int fd, logdb_log_read_mode mode)
 {
 	logdb_log_header_t header;
 	if (logdb_io_read (fd, &header, sizeof (logdb_log_header_t)) != 0) {
-		ELOG("logdb_log_read: read (fd, &header, sizeof (logdb_log_header_t)) failed");
+		ELOG("logdb_log_read: read 1");
 		return NULL;
 	}
 
@@ -58,21 +64,42 @@ static logdb_log_header_t* logdb_log_read (int fd, bool entire)
 		return NULL;
 	}
 
-	size_t entrysize = entire? (header.len * sizeof (logdb_log_entry_t)) : 0;
+	if (mode == LOGDB_VALIDATE_ONLY)
+		return ((void*)1);
 
-	/* Build the log */
+	off_t start = lseek (fd, 0, SEEK_CUR);
+	if (start == -1) {
+		ELOG("logdb_log_read: lseek 1");
+		return NULL;
+	}
+	off_t end = lseek (fd, 0, SEEK_END);
+	if (end == -1) {
+		ELOG("logdb_log_read: lseek 2");
+		return NULL;
+	}
+	if (mode == LOGDB_READ_HAS_TRAILER)
+		end -= sizeof (logdb_trailer_t);
+
+	size_t entrysize = end - start;
 	logdb_log_header_t* result = malloc (sizeof (logdb_log_header_t) + entrysize);
 	if (!result) {
-		ELOG("logdb_log_read: malloc (sizeof (logdb_log_header_t) + entrysize) failed");
+		ELOG("logdb_log_read: malloc");
 		return NULL;
 	}
+
 	memcpy (result, &header, sizeof (logdb_log_header_t));
-	if (logdb_io_read (fd, result + 1, entrysize) != 0) {
-		ELOG("logdb_log_read: read (fd, result + 1, entrysize) failed");
-		free (result);
-		return NULL;
+
+    if (entrysize) {
+		if (lseek (fd, start, SEEK_SET) == -1) {
+			ELOG("logdb_log_read: lseek 3");
+			return NULL;
+		}
+		if (logdb_io_read (fd, result + 1, entrysize) != 0) {
+			ELOG("logdb_log_read: read 2");
+			free (result);
+			return NULL;
+		}
 	}
-	
 	return result;
 }
 
@@ -83,36 +110,35 @@ logdb_log_t* logdb_log_open (const char* path)
 		LOG("logdb_log_open: open(\"%s\", O_RDWR) failed: %s", path, strerror(errno));
 		return NULL;
 	}
-	logdb_log_header_t* header = logdb_log_read (fd, false);
-	if (!header)
+
+	if (!logdb_log_read (fd, LOGDB_VALIDATE_ONLY))
 		return NULL;
 
-	logdb_log_t* result = logdb_log_new (fd, path, header);
-	free (header);
-	return result;
+	return logdb_log_new (fd, path);
 }
 
 logdb_log_t* logdb_log_create (const char* path, int dbfd)
 {
-	struct stat dbstat;
 	logdb_log_header_t* header = NULL;
+	size_t logsz = sizeof (logdb_log_header_t);
 
-	if (fstat (dbfd, &dbstat) != 0) {
-		ELOG("logdb_log_create: failed to stat db file");
+	off_t dbsz = lseek (dbfd, 0, SEEK_END);
+	if (dbsz == -1) {
+		ELOG("logdb_log_create: lseek 1");
 		return NULL;
 	}
 
 	/* First, see if there is an existing log at the end of the db */
-	if (dbstat.st_size >= LOGDB_MIN_SIZE) {
+	if (dbsz >= LOGDB_MIN_SIZE) {
 		VLOG("logdb_log_create: reading log from end of db");
 
-		if (lseek (dbfd, -sizeof(logdb_trailer_t), SEEK_END) == -1) {
-			ELOG("logdb_log_create: lseek");
+		if (lseek (dbfd, -sizeof (logdb_trailer_t), SEEK_END) == -1) {
+			ELOG("logdb_log_create: lseek 2");
 			return NULL;
 		}
 
 		logdb_trailer_t trailer;
-		if (logdb_io_read (dbfd, &trailer, sizeof(logdb_trailer_t)) != 0) {
+		if (logdb_io_read (dbfd, &trailer, sizeof (logdb_trailer_t)) != 0) {
 			ELOG("logdb_log_create: read");
 			return NULL;
 		}
@@ -120,21 +146,19 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		/* FIXME: This could overflow, causing us not to find the log in the db, causing us to lose all data :( */
 		off_t offs = ((off_t)trailer.log_offset) * -1;
 		if (lseek (dbfd, offs, SEEK_END) == -1) {
-			ELOG("logdb_log_create: lseek");
+			ELOG("logdb_log_create: lseek 3");
 			return NULL;
 		}
 
-		header = logdb_log_read (dbfd, true);
+		header = logdb_log_read (dbfd, LOGDB_READ_HAS_TRAILER);
+		logsz = trailer.log_offset - sizeof (logdb_trailer_t);
 	}
 
 	/* Otherwise, we can only guess that no data in the db is valid */
 	if (!header) {
 		VLOG("logdb_log_create: db does not contain a log");
 
-		/* Determine number of sections in the db, and thus the size of the log */
-		off_t sections = (off_t)ceil (dbstat.st_size / LOGDB_SECTION_SIZE);
-		size_t entrysize = sections * sizeof (logdb_log_entry_t);
-		header = malloc (sizeof (logdb_log_header_t) + entrysize);
+		header = malloc (sizeof (logdb_log_header_t));
 		if (!header) {
 			ELOG("logdb_log_create: malloc");
 			return NULL;
@@ -142,8 +166,6 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 
 		strcpy (header->magic, LOGDB_LOG_MAGIC);
 		header->version = LOGDB_VERSION;
-		header->len = sections;
-		memset (header + 1, 0, entrysize);
 	}
 
 	int logfd = open (path, O_RDWR | O_CREAT | O_EXCL | O_APPEND, S_IRUSR | S_IWUSR);
@@ -153,7 +175,7 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		return NULL;
 	}
 
-	if (logdb_io_write (logfd, header, logdb_log_size (header)) != 0) {
+	if (logdb_io_write (logfd, header, logsz) != 0) {
 		ELOG("logdb_log_create: write");
 		free (header);
 		close (logfd);
@@ -161,10 +183,140 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		unlink (path);
 		return NULL;
 	}
-
-	logdb_log_t* result = logdb_log_new (logfd, path, header);
 	free (header);
-	return result;
+
+	return logdb_log_new (logfd, path);
+}
+
+off_t logdb_log_read_entry (const logdb_log_t* log, logdb_log_entry_t* buf, logdb_size_t index)
+{
+	DBGIF(!log || !buf) {
+		LOG("logdb_log_read_entry: failed-- passed log or buf was null");
+		return -1;
+	}
+
+	off_t offset = logdb_log_offset (index);
+	if (logdb_io_pread (log->fd, buf, sizeof (logdb_log_entry_t), offset) > 0) {
+		ELOG("logdb_log_read_entry: pread");
+		return -1;
+	}
+	return offset;
+}
+
+int logdb_log_write_entry (logdb_log_t* log, logdb_log_entry_t* buf, logdb_size_t index)
+{
+	DBGIF(!log || !buf) {
+		LOG("logdb_log_write_entry: failed-- passed log or buf was null");
+		return -1;
+	}
+
+	off_t offset = logdb_log_offset (index);
+	if (logdb_io_pwrite (log->fd, buf, sizeof (logdb_log_entry_t), offset) > 0) {
+		ELOG("logdb_log_write_entry: pwrite");
+		return -1;
+	}
+	return 0;
+}
+
+static void logdb_log_inproc_unlock (logdb_log_t* log, logdb_size_t index, logdb_log_lock_type type)
+{
+	/* Since we know we have the lock, this algorithm is a little less tortured than the one to take the lock */
+	volatile logdb_log_lock_t* lock = log->lock;
+	while ((lock->startindex + 127) < index)
+		lock = lock->next;
+
+	logdb_size_t lockindex = index - (lock->startindex);
+	if (type == LOGDB_LOG_LOCK_READ)
+		OSAtomicDecrement32Barrier (&lock->locks[lockindex]);
+	else if (type == LOGDB_LOG_LOCK_WRITE)
+		OSAtomicIncrement32Barrier (&lock->locks[lockindex]);
+	else
+		abort();
+}
+
+int logdb_log_lock (logdb_log_t* log, logdb_size_t index, logdb_log_lock_type type)
+{
+	/* We MUST obtain our in-proc lock on the applicable section BEFORE
+		attempting to take the `fcntl` lock. Otherwise, a different thread
+		might inadvertently unlock us.
+	 */
+	volatile logdb_log_lock_t* volatile* dest = &log->lock;
+	volatile logdb_log_lock_t* lock = log->lock;
+
+tryagain1:
+	if (!lock || (lock->startindex > index)) {
+		logdb_log_lock_t* newlock = (logdb_log_lock_t*)calloc (1, sizeof (logdb_log_lock_t));
+		if (!newlock) {
+			ELOG("logdb_log_lock: calloc");
+			return -1;
+		}
+		newlock->startindex = index;
+		newlock->next = lock;
+		if (!OSAtomicCompareAndSwapPtrBarrier ((void*)lock, newlock, (void* volatile*)dest)) {
+			free (newlock);
+			lock = *dest;
+			goto tryagain1;
+		}
+        lock = newlock;
+	}
+
+	logdb_size_t lockindex = index - (lock->startindex);
+	if (lockindex > 127) {
+		dest = &lock->next;
+		lock = lock->next;
+		goto tryagain1;
+	}
+
+	/* Now that we have the correct structure, attempt to lock it */
+	int value;
+	struct flock flk;
+tryagain2:
+	value = lock->locks[lockindex];
+	if ((type == LOGDB_LOG_LOCK_READ) && (value >= 0)) {
+		/* Take a read lock 
+			FIXME: Prevent overflow!
+		*/
+		if (!OSAtomicCompareAndSwap32Barrier (value, value + 1, &lock->locks[lockindex]))
+			goto tryagain2;
+		flk.l_type = F_RDLCK;
+	} else if ((type == LOGDB_LOG_LOCK_WRITE) && (value == 0)) {
+		/* Take a write lock */
+		if (!OSAtomicCompareAndSwap32Barrier (0, -1, &lock->locks[lockindex]))
+			goto tryagain2;
+		flk.l_type = F_WRLCK;
+	} else {
+		/* We can't take any lock :( */
+		return -2;
+	}
+
+	/* Now we've locked this entry at the process level, we need to take
+	    an `fcntl` lock on the section of the file to synchronize across processes */
+	flk.l_whence = SEEK_SET;
+	flk.l_start = logdb_log_offset (index);
+	flk.l_len = sizeof (logdb_log_entry_t);
+	flk.l_pid = getpid();
+	if (fcntl (log->fd, F_SETLK, &flk) == -1) {
+		ELOG("logdb_log_lock: fcntl");
+		logdb_log_inproc_unlock (log, index, type);
+		return -3;
+	}
+
+	/* We have the lock! */
+	return 0;
+}
+
+void logdb_log_unlock (logdb_log_t* log, logdb_size_t index, logdb_log_lock_type type)
+{
+	struct flock flk;
+	flk.l_type = F_UNLCK;
+	flk.l_whence = SEEK_SET;
+	flk.l_start = logdb_log_offset (index);
+	flk.l_len = sizeof (logdb_log_entry_t);
+	flk.l_pid = getpid();
+	if (fcntl (log->fd, F_SETLK, &flk) == -1)
+		ELOG("logdb_log_unlock: fcntl");
+
+	logdb_log_inproc_unlock (log, index, type);
 }
 
 int logdb_log_close (logdb_log_t* log)
@@ -201,37 +353,48 @@ int logdb_log_close_merge (logdb_log_t* log, int dbfd)
 
 	/* Seek to beginning of log */
 	if (lseek (log->fd, 0, SEEK_SET) == -1) {
-		ELOG("logdb_log_close_merge: lseek");
+		ELOG("logdb_log_close_merge: lseek 1");
 		goto failunlock;
 	}
-	logdb_log_header_t* header = logdb_log_read (log->fd, true);
+	logdb_log_header_t* header = logdb_log_read (log->fd, LOGDB_READ_NO_TRAILER);
 	if (!header)
 		goto failunlock;
 
-	/* See if there is already enough free space at the end of the file */
-	size_t foundspace = 0;
-	size_t headersz = logdb_log_size (header);
-	size_t reqspace = headersz + sizeof (logdb_trailer_t);
-	int nsections = (int)ceil ((float)reqspace / LOGDB_SECTION_SIZE);
-	logdb_log_entry_t* entries = (logdb_log_entry_t*)(header + 1);
-	if (header->len >= nsections) {
-		for (unsigned int i = 1; i <= nsections; i++) {
-			logdb_log_entry_t entry = entries [header->len - i];
-			foundspace += LOGDB_SECTION_SIZE - entry.len;
-			if (entry.len != 0)
-				break;
-		}
+	/* Now seek to the end to get the length */
+	off_t logsz = lseek (log->fd, 0, SEEK_END);
+	if (logsz == -1) {
+		ELOG("logdb_log_close_merge: lseek 2");
+		goto failunlock;
 	}
 
-	off_t seek = (foundspace >= reqspace)? -reqspace : 0;
-	if (lseek (dbfd, seek, SEEK_END) == -1) {
+	/* Let's figure out the min size of the db and truncate to there */
+	logdb_size_t sections = logdb_log_index_from_offset (logsz);
+	off_t minsz = logdb_connection_offset (sections);
+
+	/* See if we can trim any more from the end */
+	logdb_log_entry_t* entries = (logdb_log_entry_t*)(header + 1);
+	for (unsigned int i = 1; i <= sections; i++) {
+		logdb_log_entry_t entry = entries [sections - i];
+		minsz -= LOGDB_SECTION_SIZE - entry.len;
+		if (entry.len == 0)
+			logsz -= sizeof (logdb_log_entry_t);
+		else
+			break;
+	}
+
+	if (ftruncate (dbfd, minsz) != 0) {
+		ELOG("logdb_log_close_merge: ftruncate");
+		goto failunlock;
+	}
+
+	if (lseek (dbfd, 0, SEEK_END) == -1) {
 		ELOG("logdb_log_close_merge: lseek");
 		goto failunlock;
 	}
 
 	logdb_trailer_t trailer;
-	trailer.log_offset = reqspace;
-	if (logdb_io_write (dbfd, header, headersz) || logdb_io_write (dbfd, &trailer, sizeof (trailer))) {
+	trailer.log_offset = logsz + sizeof (trailer);
+	if (logdb_io_write (dbfd, header, logsz) || logdb_io_write (dbfd, &trailer, sizeof (trailer))) {
 		/* NOTE: The is no possibility of corrupting the db here, because the
 		    log file still shows these bytes as free.
 		*/

@@ -14,6 +14,11 @@
  */
 #define LOGDB_LOG_MAGIC "LDBL"
 
+typedef enum {
+	LOGDB_LOG_LOCK_READ,
+	LOGDB_LOG_LOCK_WRITE
+} logdb_log_lock_type;
+
 /**
  * Internal structure representing a reader/writer lock on
  *  entries in the log file.
@@ -23,20 +28,22 @@
  *  to roll our own to protect multithreaded access.
  */
 typedef struct logdb_log_lock_t {
+	logdb_size_t startindex;
+
 	/**
-	 * A set of locks. Index 0 corresponds to the last index entry,
-	 *  counting up corresponding to earlier index entries.
+	 * A set of locks. Index 0 corresponds to `startindex`, with
+	 *  each subsequent index being the next section in the log.
 	 *
 	 * For each entry, 0 indicates no lock is taken, a positive value
 	 *  indicates the number of read locks taken, and -1 indicates a
 	 *  write lock is taken.
 	 */
-	int locks[256];
+	int locks[128];
 
 	/**
 	 * If we run out of locks above, we simply append another structure here.
 	 */
-	struct logdb_log_lock_t* next;
+	volatile struct logdb_log_lock_t* next;
 } logdb_log_lock_t;
 
 typedef struct {
@@ -48,9 +55,8 @@ typedef struct {
 typedef struct {
 	char magic[sizeof(LOGDB_LOG_MAGIC) - 1]; /* LOGDB_LOG_MAGIC */
 	unsigned short version; /* LOGDB_VERSION */
-	logdb_size_t len; /**< number of entries in the log */
 
-	/* len logdb_log_entry_t structs follow */
+	/* logdb_log_entry_t structs follow until EOF */
 } logdb_log_header_t;
 
 /**
@@ -59,6 +65,11 @@ typedef struct {
 typedef struct {
 	unsigned short len; /**< number of bytes that are valid in this section */
 } logdb_log_entry_t;
+
+/**
+ * Returns the entry index associated with the given offset into the log file.
+ */
+logdb_size_t logdb_log_index_from_offset (off_t offset);
 
 /**
  * Opens the log file at the given path.
@@ -73,6 +84,41 @@ logdb_log_t* logdb_log_open (const char* path);
  * \returns The log, or NULL if it could not be created.
  */
 logdb_log_t* logdb_log_create (const char* path, int dbfd);
+
+/**
+ * Reads the given entry from the log.
+ * \param log The log from which to read.
+ * \param buf The buffer into which the entry will be read.
+ * \param index Zero-based index of the entry to read.
+ * \returns -1 on failure, otherwise the offset in the log file of the entry.
+ */
+off_t logdb_log_read_entry (const logdb_log_t* log, logdb_log_entry_t* buf, logdb_size_t index);
+
+/**
+ * Writes the given entry to the log. This entry should be locked.
+ * \param log The log from which to read.
+ * \param buf The buffer from which the entry will be written.
+ * \param index Zero-based index of the entry to write.
+ * \returns Zero (0) on success.
+ */
+int logdb_log_write_entry (logdb_log_t* log, logdb_log_entry_t* buf, logdb_size_t index);
+
+/**
+ * Attempts to acquire the given lock on the given entry in the log.
+ * \param log The log.
+ * \param index The index of the entry to lock.
+ * \param type The type of lock to acquire.
+ * \returns Zero (0) if the lock was acquired.
+ */
+int logdb_log_lock (logdb_log_t* log, logdb_size_t index, logdb_log_lock_type type);
+
+/**
+ * Unlocks the given lock on the given entry in the log.
+ * \param log The log.
+ * \param index The index of the entry to unlock.
+ * \param type The type of lock to remove.
+ */
+void logdb_log_unlock (logdb_log_t* log, logdb_size_t index, logdb_log_lock_type type);
 
 /**
  * Closes the given log.
