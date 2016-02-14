@@ -10,7 +10,7 @@
  * The maximum number of log entries to walk backwards to find
  *  a lease.
  */
-#define LOGDB_LEASE_MAX_WALK 3
+#define LOGDB_LEASE_MAX_WALK 4
 
 /**
  * Internal struct that represents a lease on a database section.

@@ -5,6 +5,22 @@
 #include <string.h>
 #include <libkern/OSAtomic.h>
 
+/**
+ * Creates an unowned copy of the given buffer
+ *  (e.g. `disposer` will be null in the copy regardless of its value in the given buffer).
+ * The reference count of the returned copy will be 1.
+ * \returns The copy, or NULL on failure.
+ */
+static logdb_buffer_t* logdb_buffer_copy (logdb_buffer_t* buf)
+{
+	logdb_buffer_t* result = (logdb_buffer_t*)logdb_buffer_new_direct (buf->data, buf->len, NULL);
+	if (result) {
+		logdb_buffer_retain (buf);
+		result->orig = buf;
+	}
+	return result;
+}
+
 logdb_buffer* logdb_buffer_new_direct (void* data, logdb_size_t length, dispose_func disposer)
 {
 	DBGIF(!data) {
@@ -21,6 +37,7 @@ logdb_buffer* logdb_buffer_new_direct (void* data, logdb_size_t length, dispose_
 	buf->data = data;
 	buf->len = length;
 	buf->disposer = disposer;
+	buf->orig = NULL;
 	buf->next = NULL;
 	buf->refcnt = 1;
 	return buf;
@@ -78,9 +95,7 @@ logdb_buffer* logdb_buffer_append (logdb_buffer* buffer1, logdb_buffer* buffer2)
 			return NULL;
 	}
 
-	logdb_buffer_retain (buffer2);
-	buf->next = (logdb_buffer_t*)buffer2;
-
+	buf->next = logdb_buffer_copy ((logdb_buffer_t*)buffer2);
 	return buffer1;
 }
 
@@ -97,6 +112,8 @@ void logdb_buffer_free (logdb_buffer* buffer)
 		return;
 	if (buf->disposer)
 		buf->disposer (buf->data);
+	if (buf->orig)
+		logdb_buffer_free (buf->orig);
 	if (buf->next)
 		logdb_buffer_free (buf->next);
 	free (buf);

@@ -94,9 +94,6 @@ LOGDB_API logdb_size_t logdb_buffer_length (const logdb_buffer* buffer);
 
 /**
  * Appends the second buffer to the first buffer.
- *
- *  Buffers form a linked list, so any buffer further appended to either
- *  `buffer1` or `buffer2` will come at the end of the entire chain.
  * \param buffer1 The first buffer.
  * \param buffer2 The second buffer.
  * \returns NULL on failure. On success, `buffer1`, unless it was NULL, then `buffer2`

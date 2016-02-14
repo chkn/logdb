@@ -3,7 +3,7 @@
 
 #include "logdb.h"
 
-#include <stddef.h>
+#include <stdlib.h>
 
 /**
  * The version of the internal data structures (and thus file format).
@@ -21,8 +21,6 @@
  * The minimum size for a valid database file
  */
 #define LOGDB_MIN_SIZE (sizeof(logdb_header_t) + sizeof(logdb_log_header_t) + sizeof(logdb_trailer_t))
-
-#define NULL ((void*)0)
 
 typedef enum { false, true } bool;
 
