@@ -59,10 +59,56 @@ LOGDB_API logdb_connection* logdb_open (const char* path, logdb_open_flags flags
  */
 LOGDB_API int logdb_close (logdb_connection* connection);
 
-/* BUFFERS */
+/* ITERATORS */
 
-/** An opaque data structure representing a LogDB data buffer. */
+/** An opaque data structure representing a data buffer (see BUFFERS section below). */
 typedef void logdb_buffer;
+
+/** An opaque data structure representing an iterator */
+typedef void logdb_iter;
+
+/**
+ * Creates a new iterator to iterate over all records in the given connection.
+ *  The iterator starts before the first record; a call to `logdb_iter_next`
+ *  is required to advance to the first record.
+ * \returns The new iterator, or NULL on failure.
+ */
+LOGDB_API logdb_iter* logdb_iter_all (logdb_connection* connection);
+
+/**
+ * Advances the iterator to the next record.
+ * \returns One (1) on success, or zero (0) on failure (e.g. there are no more records)
+ */
+LOGDB_API int logdb_iter_next (logdb_iter* iter);
+
+/**
+ * Returns the current key pointed to by this iterator.
+ *
+ * \returns A buffer with the key, or NULL on failure.
+ * The buffer returned by this function may be freed by the next call
+ *  to `logdb_iter_next` or `logdb_iter_free`. If you wish to retain the
+ *  buffer past that point, you must call `logdb_buffer_retain` (with a
+ *  matching call to `logdb_buffer_free`).
+ */
+LOGDB_API logdb_buffer* logdb_iter_current_key (logdb_iter* iter);
+
+/**
+ * Returns the current value pointed to by this iterator.
+ *
+ * \returns A buffer with the value, or NULL on failure.
+ * The buffer returned by this function may be freed by the next call
+ *  to `logdb_iter_next` or `logdb_iter_free`. If you wish to retain the
+ *  buffer past that point, you must call `logdb_buffer_retain` (with a
+ *  matching call to `logdb_buffer_free`).
+ */
+LOGDB_API logdb_buffer* logdb_iter_current_value (logdb_iter* iter);
+
+/**
+ * Frees the resources used by the given iterator and deallocates it.
+ */
+LOGDB_API void logdb_iter_free (logdb_iter* iter);
+
+/* BUFFERS */
 
 /** A function pointer type representing a function to dispose a pointer. */
 typedef void (*dispose_func)(void*);
@@ -91,6 +137,13 @@ LOGDB_API logdb_buffer* logdb_buffer_new_copy (void* data, logdb_size_t length);
  * \returns Total length, or 0 if `buffer` is NULL.
  */
 LOGDB_API logdb_size_t logdb_buffer_length (const logdb_buffer* buffer);
+
+/**
+ * Returns a pointer to the data contained in this buffer.
+ *  The data must not be modified through this pointer!
+ * \returns A pointer to the data, or NULL on failure.
+ */
+LOGDB_API const void* logdb_buffer_data (const logdb_buffer* buffer);
 
 /**
  * Appends the second buffer to the first buffer.

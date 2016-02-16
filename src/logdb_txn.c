@@ -18,6 +18,21 @@ static int logdb_txn_set_current (logdb_connection_t* conn, logdb_txn_t* txn)
 	return pthread_setspecific (conn->current_txn_key, txn);
 }
 
+static int logdb_txn_write_buf (logdb_lease_t* lease, logdb_buffer_t* buf)
+{
+	do {
+		if (buf->orig) {
+			if (logdb_txn_write_buf (lease, buf->orig) != 0)
+				return -1;
+		} else {
+			if (logdb_lease_write (lease, buf->data, buf->len) != 0)
+				return -1;
+		}
+		buf = buf->next;
+	} while (buf);
+	return 0;
+}
+
 logdb_txn_t* logdb_txn_begin_implicit (logdb_connection_t* conn)
 {
 	logdb_txn_t* txn = calloc (1, sizeof (logdb_txn_t));
@@ -67,14 +82,10 @@ static int logdb_txn_commit (logdb_connection_t* conn, logdb_txn_t* txn)
 		return -1;
 
 	/* Write the data */
-	logdb_buffer_t* buf = txn->buf;
-	do {
-		if (logdb_lease_write (&lease, buf->data, buf->len) != 0) {
-			logdb_lease_release (&lease);
-			return -1;
-		}
-		buf = buf->next;
-	} while (buf);
+	if (logdb_txn_write_buf (&lease, txn->buf) != 0) {
+		logdb_lease_release (&lease);
+		return -1;
+	}
 
 	if (fsync (conn->fd) == -1) {
 		ELOG("logdb_txn_commit: fsync 1");
@@ -91,7 +102,7 @@ static int logdb_txn_commit (logdb_connection_t* conn, logdb_txn_t* txn)
 		return -1;
 	}
 
-	/* I don't think there's really much we can do if this fails */ 
+	/* I don't think there's really much we can do if this fails? */ 
 	(void)fsync (conn->log->fd);
 
 	/* Release the lease */

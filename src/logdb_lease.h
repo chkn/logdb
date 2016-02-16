@@ -19,8 +19,19 @@ typedef struct {
 	logdb_connection_t* connection;
 	logdb_size_t index; /**< index of the entry in the log that this lease starts on */
 	off_t offset; /**< offset inside of the section */
-	logdb_log_lock_type type; /**< type of lease */
+	logdb_size_t len; /**< the number of bytes remaining on the lease */
+	logdb_log_lock_type type; /**< type of lock taken, if any */
 } logdb_lease_t;
+
+/**
+ * Acquires a read lease on the given section of the database.
+ * \param lease The destination for the lease object.
+ * \param conn Connection on which to acquire the lease.
+ * \param index Index of the section on which to acquire the lease.
+ * \param offset Offset inside the section at which to acquire the lease.
+ * \returns Zero (0) on success.
+ */
+int logdb_lease_acqire_read (logdb_lease_t* lease, logdb_connection_t* conn, logdb_size_t index, off_t offset);
 
 /**
  * Acquires a write lease on a section of the database that is large enough to write
@@ -31,6 +42,15 @@ typedef struct {
  * \returns Zero (0) on success.
  */
 int logdb_lease_acquire_write (logdb_lease_t* lease, logdb_connection_t* conn, logdb_size_t size);
+
+/**
+ * Reads data from the leased region of the database file.
+ * \param lease The lease from which to read.
+ * \param buf A buffer to hold the data that is read.
+ * \param len The number of bytes to read into `buf`.
+ * \returns Zero (0) on success. On failure, the amount of data remaining to be read.
+ */
+size_t logdb_lease_read (logdb_lease_t* lease, const void* buf, logdb_size_t len);
 
 /**
  * Writes the given data to the leased region of the database file.

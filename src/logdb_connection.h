@@ -53,7 +53,7 @@ off_t logdb_connection_offset (logdb_size_t index);
 	logdb_connection_t* conn_var_; \
 	var = conn_var_ = (logdb_connection_t*)(conn_arg_); \
 	DBGIF(!conn_var_ || conn_var_->version != LOGDB_VERSION) { \
-		LOG("%s: failed-- passed connection was either null, already closed, or incorrect version.", __func__); \
+		LOG("%s: failed-- passed connection was either null, already closed, or incorrect version", __func__); \
 		return -1; \
 	}
 

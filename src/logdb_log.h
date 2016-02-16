@@ -15,6 +15,7 @@
 #define LOGDB_LOG_MAGIC "LDBL"
 
 typedef enum {
+	LOGDB_LOG_LOCK_NONE,
 	LOGDB_LOG_LOCK_READ,
 	LOGDB_LOG_LOCK_WRITE
 } logdb_log_lock_type;

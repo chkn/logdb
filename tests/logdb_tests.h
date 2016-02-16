@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/stat.h>
 
 #define TEST(name) static int name () { printf("%s: ", #name);

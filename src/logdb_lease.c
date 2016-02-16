@@ -5,18 +5,13 @@
 #include <string.h>
 #include <unistd.h>
 
-int logdb_lease_acquire_write (logdb_lease_t* lease, logdb_connection_t* conn, logdb_size_t size)
+static int logdb_lease_acquire_prelude (logdb_lease_t* lease, logdb_connection_t* conn)
 {
 	DBGIF(!lease || !conn) {
-		LOG("logdb_lease_acquire_write: failed-- lease or conn was NULL");
+		LOG("logdb_lease_acquire_prelude: failed-- lease or conn was NULL");
 		return -1;
 	}
 	lease->connection = NULL;
-
-	if (size > LOGDB_SECTION_SIZE) {
-		LOG("logdb_lease_acquire_write: cannot yet save data > LOGDB_SECTION_SIZE");
-		return -1;
-	}
 
 	/* Obtain shared lock on connection to prevent other threads from closing it on us */
 	int err = pthread_rwlock_rdlock (&conn->lock);
@@ -24,6 +19,47 @@ int logdb_lease_acquire_write (logdb_lease_t* lease, logdb_connection_t* conn, l
 		LOG("logdb_lease_acquire_write: pthread_rwlock_rdlock: %s", strerror(err));
 		return -1;
 	}
+
+	return 0;
+}
+
+int logdb_lease_acqire_read (logdb_lease_t* lease, logdb_connection_t* conn, logdb_size_t index, off_t offset)
+{
+	if (logdb_lease_acquire_prelude (lease, conn) != 0)
+		return -1;
+
+	/* Read the log to determine how much valid data is in the section.
+	    Note that we don't take a lock here and it is perfectly valid for
+		more data to be appended to the section after we read this. That
+		data simply won't be a part of this lease.
+	*/
+	logdb_log_entry_t entry;
+	if (logdb_log_read_entry (conn->log, &entry, index) == -1) {
+		pthread_rwlock_unlock (&conn->lock);
+		return -1;
+	}
+	if ((offset < 0) || (offset >= entry.len)) {
+		LOG("logdb_lease_acqire_read: invalid offset");
+		pthread_rwlock_unlock (&conn->lock);
+		return -1;
+	}
+
+	lease->connection = conn;
+	lease->index = index;
+	lease->offset = offset;
+	lease->len = entry.len - offset;
+	lease->type = LOGDB_LOG_LOCK_NONE;
+	return 0;
+}
+
+int logdb_lease_acquire_write (logdb_lease_t* lease, logdb_connection_t* conn, logdb_size_t size)
+{
+	if (size > LOGDB_SECTION_SIZE) {
+		LOG("logdb_lease_acquire_write: cannot yet save data > LOGDB_SECTION_SIZE");
+		return -1;
+	}
+	if (logdb_lease_acquire_prelude (lease, conn) != 0)
+		return -1;
 
 	/* Next we need to find an applicable section of the db file to lease..
 	    We first check the last few entries to see if there's space, otherwise just append.
@@ -44,6 +80,7 @@ walk:
 	offset = lseek (conn->log->fd, 0, SEEK_END);
 	if (offset == -1) {
 		ELOG("logdb_lease_acquire_write: lseek");
+		pthread_rwlock_unlock (&conn->lock);
 		return -1;
 	}
 	entries = logdb_log_index_from_offset (offset) - visited;
@@ -107,35 +144,59 @@ walk:
 	lease->connection = conn;
 	lease->index = index;
 	lease->offset = offset;
+	lease->len = size;
 	lease->type = LOGDB_LOG_LOCK_WRITE;
 	return 0;
+}
+
+size_t logdb_lease_read (logdb_lease_t* lease, const void* buf, logdb_size_t len)
+{
+	DBGIF(!lease || !buf) {
+		LOG("logdb_lease_read: failed-- lease or buf was NULL");
+		return len;
+	}
+	if (len > lease->len) {
+		LOG("logdb_lease_read: failed-- len exceeds lease size");
+		return len;
+	}
+
+	off_t offset = logdb_connection_offset (lease->index) + lease->offset;
+	size_t notread = logdb_io_pread (lease->connection->fd, buf, len, offset);
+	size_t bytes = len - notread;
+
+	lease->offset += bytes;
+	lease->len -= bytes;
+	return notread;
 }
 
 size_t logdb_lease_write (logdb_lease_t* lease, const void* buf, logdb_size_t len)
 {
 	DBGIF(!lease || !buf) {
 		LOG("logdb_lease_write: failed-- lease or buf was NULL");
-		return -1;
+		return len;
+	}
+	if (len > lease->len) {
+		LOG("logdb_lease_write: failed-- len exceeds lease size");
+		return len;
 	}
 
-	off_t leaseoffset = lease->offset;
-	if ((leaseoffset + len) > LOGDB_SECTION_SIZE) {
-		LOG("logdb_lease_write: failed-- offset + len is greater than section size");
-		return -1;
-	}
-
-	off_t offset = logdb_connection_offset (lease->index) + leaseoffset;
+	off_t offset = logdb_connection_offset (lease->index) + lease->offset;
 	size_t notwritten = logdb_io_pwrite (lease->connection->fd, buf, len, offset);
+	size_t bytes = len - notwritten;
 
-	lease->offset += (len - notwritten);
+	lease->offset += bytes;
+	lease->len -= bytes;
 	return notwritten;
 }
 
 void logdb_lease_release (logdb_lease_t* lease)
 {
-	if (!lease || !(lease->connection))
+	DBGIF(!lease || !(lease->connection)) {
+		LOG("logdb_lease_release: passed invalid lease");
 		return;
-	logdb_log_unlock (lease->connection->log, lease->index, lease->type);
+	}
+	if (lease->type != LOGDB_LOG_LOCK_NONE)
+		logdb_log_unlock (lease->connection->log, lease->index, lease->type);
 	pthread_rwlock_unlock (&lease->connection->lock);
 	lease->connection = NULL;
 }

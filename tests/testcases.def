@@ -1,70 +1,102 @@
 
+TEST(Buffers)
+{
+	logdb_buffer *buf1, *buf2;
+	ASSERT(buf1 = logdb_buffer_new_copy ("foo", 3));
+	ASSERT(buf2 = logdb_buffer_new_copy ("bar", 3));
 
+	ASSERT(logdb_buffer_append (buf1, buf2));
+	ASSERT(6 == logdb_buffer_length (buf1));
+
+	const char* data;
+	ASSERT(data = (const char*)logdb_buffer_data (buf1));
+
+	ASSERT(!strncmp (data, "foobar", 6));
+	PASS;
+}
 
 TEST(OpenCloseConnection)
 {
-    logdb_connection* conn;
-    
-    conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
-    if (conn) {
-        logdb_close(conn);
-        ASSERTF(0, "temp.logdb should not exist");
-    }
+	logdb_connection* conn;
 
-    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
-    ASSERT(conn);
+	conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
+	if (conn) {
+		logdb_close(conn);
+		ASSERTF(0, "temp.logdb should not exist");
+	}
 
-    ASSERT(!logdb_close(conn));
+	conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
+	ASSERT(conn);
 
-    /* We should be able to open it again, no problemo */
-    conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
-    ASSERT(conn);
- 
-    ASSERT(!logdb_close(conn));
-    
-    unlink("temp.logdb");
-    PASS;
+	ASSERT(!logdb_close(conn));
+
+	/* We should be able to open it again, no problemo */
+	conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING);
+	ASSERT(conn);
+
+	ASSERT(!logdb_close(conn));
+
+	unlink("temp.logdb");
+	PASS;
 }
 
 TEST(TransactionBeginRollback)
 {
-    logdb_connection* conn;
+	logdb_connection* conn;
+	ASSERT(conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE));
 
-    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
-    ASSERT(conn);
+	/* No active transaction; should not be able to rollback */
+	ASSERT(logdb_rollback (conn) != 0);
 
-    /* No active transaction; should not be able to rollback */
-    ASSERT(logdb_rollback (conn) != 0);
+	ASSERT(logdb_begin (conn) == 0);
+	ASSERT(logdb_rollback (conn) == 0);
 
-    ASSERT(logdb_begin (conn) == 0);
-    ASSERT(logdb_rollback (conn) == 0);
+	/* No active transaction; should not be able to rollback */
+	ASSERT(logdb_rollback (conn) != 0);
 
-    /* No active transaction; should not be able to rollback */
-    ASSERT(logdb_rollback (conn) != 0);
-    
-    ASSERT(!logdb_close(conn));
-    
-    unlink("temp.logdb");
-    PASS;
+	ASSERT(!logdb_close(conn));
+
+	unlink("temp.logdb");
+	PASS;
 }
 
 TEST(Put1)
 {
-    logdb_connection* conn;
+	logdb_connection* conn;
+	ASSERT(conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE));
 
-    conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE);
-    ASSERT(conn);
+	logdb_buffer *key, *val;
+	ASSERT(key = logdb_buffer_new_direct ("hello", 5, NULL));
+	ASSERT(val = logdb_buffer_new_direct ("world!", 6, NULL));
+	ASSERT(5 == logdb_buffer_length (key));
+	ASSERT(6 == logdb_buffer_length (val));
 
-    logdb_buffer* key = logdb_buffer_new_direct ("hello", 5, NULL);
-    logdb_buffer* val = logdb_buffer_new_direct ("world", 5, NULL);
+	ASSERT(!logdb_put (conn, key, val));
 
+	logdb_buffer_free (key);
+	logdb_buffer_free (val);
+	
+	logdb_iter* iter;
+	ASSERT(iter = logdb_iter_all (conn));
+	ASSERT(logdb_iter_next (iter));
 
-    ASSERT(!logdb_put (conn, key, val));
+	ASSERT(key = logdb_iter_current_key (iter));
+	ASSERT(val = logdb_iter_current_value (iter));
 
-    logdb_buffer_free (key);
-    logdb_buffer_free (val);
-    ASSERT(!logdb_close(conn));
+	ASSERT(5 == logdb_buffer_length (key));
+	ASSERT(6 == logdb_buffer_length (val));
 
-    unlink("temp.logdb");
-    PASS;
+	const char* data;
+	ASSERT(data = (const char*)logdb_buffer_data (key));
+	ASSERT(!strncmp (data, "hello", 5));
+
+	ASSERT(data = (const char*)logdb_buffer_data (val));
+	ASSERT(!strncmp (data, "world!", 6));
+
+	ASSERT(!logdb_iter_next (iter));
+
+	logdb_iter_free (iter);
+	ASSERT(!logdb_close(conn));
+	unlink("temp.logdb");
+	PASS;
 }
