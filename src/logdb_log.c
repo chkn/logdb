@@ -298,7 +298,8 @@ tryagain2:
 	flk.l_len = sizeof (logdb_log_entry_t);
 	flk.l_pid = getpid();
 	if (fcntl (log->fd, F_SETLK, &flk) == -1) {
-		ELOG("logdb_log_lock: fcntl");
+		if (errno != EAGAIN)
+			ELOG("logdb_log_lock: fcntl");
 		logdb_log_inproc_unlock (log, index, type);
 		return -3;
 	}

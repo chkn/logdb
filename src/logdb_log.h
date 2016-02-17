@@ -3,6 +3,8 @@
 
 #include "logdb_internal.h"
 
+#include <sys/types.h>
+
 /**
  * The suffix applied to the database file name to derive the
  * log file name.

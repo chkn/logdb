@@ -3,6 +3,18 @@ require 'configure'
 solution "LogDB"
 	configurations { "Debug", "DebugVerbose", "Release" }
 
+	filter "configurations:Debug*"
+		defines { "DEBUG" }
+		flags { "Symbols" }
+		targetdir "bin/Debug"
+
+	filter "configurations:DebugVerbose"
+		defines { "VERBOSE" }
+
+	filter "configurations:Release"
+		flags { "Optimize" }
+		targetdir "bin/Release"
+
 project "LogDB"
 	language "C"
 	kind "SharedLib"
@@ -17,24 +29,9 @@ project "LogDB"
 	filter "system:macosx"
 		linkoptions { '-Wl,-install_name', '-Wl,@loader_path/%{cfg.linktarget.name}' }
 
-	filter "configurations:Debug*"
-		defines { "DEBUG" }
-		flags { "Symbols" }
-		targetdir "bin/Debug"
-
-	filter "configurations:DebugVerbose"
-		defines { "VERBOSE" }
-
-	filter "configurations:Release"
-		flags { "Optimize" }
-		targetdir "bin/Release"
-
-
 project "Tests"
 	language "C"
 	kind "ConsoleApp"
-
-	removeconfigurations { "Release" }
 
 	files {
 		"tests/**.h",
@@ -42,6 +39,24 @@ project "Tests"
 		"tests/**.c"
 	}
 	links { "LogDB" }
-
 	includedirs { "include" }
-	targetdir "bin/Debug"
+
+project "StressTest"
+	language "C"
+	kind "ConsoleApp"
+
+	files {
+		"stress/stress.c"
+	}
+	links { "LogDB" }
+	includedirs { "include" }
+
+project "StressTestDump"
+	language "C"
+	kind "ConsoleApp"
+
+	files {
+		"stress/dump.c"
+	}
+	links { "LogDB" }
+	includedirs { "include" }
