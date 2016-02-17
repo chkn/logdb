@@ -5,6 +5,17 @@
 #include <string.h>
 #include <unistd.h>
 
+static bool logdb_lease_read_entry_space (logdb_log_t* log, logdb_log_entry_t* entry, logdb_size_t index, logdb_size_t size)
+{
+	off_t offset = logdb_log_read_entry (log, entry, index);
+	if (offset == -1)
+		return false;
+
+	/* Check if the entry has enough free space for us */
+	int freespace = LOGDB_SECTION_SIZE - (entry->len);
+	return (freespace >= size);
+}
+
 static int logdb_lease_acquire_prelude (logdb_lease_t* lease, logdb_connection_t* conn)
 {
 	DBGIF(!lease || !conn) {
@@ -72,7 +83,6 @@ int logdb_lease_acquire_write (logdb_lease_t* lease, logdb_connection_t* conn, l
 		*/
 	off_t offset;
 	logdb_size_t index;
-	logdb_size_t entries;
 	logdb_log_entry_t entry;
 	unsigned int visited = 0;
 
@@ -83,22 +93,14 @@ walk:
 		pthread_rwlock_unlock (&conn->lock);
 		return -1;
 	}
-	entries = logdb_log_index_from_offset (offset) - visited;
+	index = logdb_log_index_from_offset (offset) - visited;
 	offset = -1;
 	visited = 0;
-	while ((visited++ < LOGDB_LEASE_MAX_WALK) && (entries--)) {
-		offset = logdb_log_read_entry (conn->log, &entry, entries);
-		if (offset == -1)
-			continue;
-
-		/* Check if the entry has enough free space for us */
-		int freespace = LOGDB_SECTION_SIZE - entry.len;
-		if (freespace >= size) {
-			index = logdb_log_index_from_offset (offset);
+	while ((index--) && (visited++ < LOGDB_LEASE_MAX_WALK)) {
+		if (logdb_lease_read_entry_space (conn->log, &entry, index, size)) {
 			offset = entry.len;
 			break;
 		}
-
 		offset = -1;
 	}
 
@@ -140,6 +142,10 @@ walk:
 		/* FIXME: Would it ever be possible to loop forever here? */
 		goto walk;
 	}
+
+	/* now that we have the lock, double check that there is still enough space in the section */
+	if (!logdb_lease_read_entry_space (conn->log, &entry, index, size))
+		goto walk;
 
 	lease->connection = conn;
 	lease->index = index;
