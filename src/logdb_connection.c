@@ -64,7 +64,8 @@ logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 		VLOG("logdb_open: verifying db header");
 
 		logdb_header_t header;
-		if (logdb_io_read (fd, &header, sizeof (header)) != 0) {
+		ssize_t result = logdb_io_read (fd, &header, sizeof (header));
+		if (result > 0) {
 			ELOG("logdb_open: read");
 			close (fd);
 			free (logpath);
@@ -72,7 +73,7 @@ logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 		}
 
 		/* Validate the header */
-		if ((memcmp (&header.magic, LOGDB_MAGIC, sizeof (LOGDB_MAGIC) - 1) != 0)
+		if ((result == -1) || (memcmp (&header.magic, LOGDB_MAGIC, sizeof (LOGDB_MAGIC) - 1) != 0)
 			|| (header.version != LOGDB_VERSION)) {
 			LOG("logdb_open: failed to validate db header");
 			close (fd);

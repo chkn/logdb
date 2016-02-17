@@ -66,18 +66,25 @@ TEST(Put1)
 	ASSERT(conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE));
 
 	logdb_buffer *key, *val;
+	ASSERT(key = logdb_buffer_new_direct ("foo", 3, NULL));
+	ASSERT(val = logdb_buffer_new_direct ("bar!", 4, NULL));
+	ASSERT(3 == logdb_buffer_length (key));
+	ASSERT(4 == logdb_buffer_length (val));
+	ASSERT(!logdb_put (conn, key, val));
+	logdb_buffer_free (key);
+	logdb_buffer_free (val);
+	
 	ASSERT(key = logdb_buffer_new_direct ("hello", 5, NULL));
 	ASSERT(val = logdb_buffer_new_direct ("world!", 6, NULL));
 	ASSERT(5 == logdb_buffer_length (key));
 	ASSERT(6 == logdb_buffer_length (val));
-
 	ASSERT(!logdb_put (conn, key, val));
-
 	logdb_buffer_free (key);
 	logdb_buffer_free (val);
 	
 	logdb_iter* iter;
 	ASSERT(iter = logdb_iter_all (conn));
+	ASSERT(logdb_iter_next (iter));
 	ASSERT(logdb_iter_next (iter));
 
 	ASSERT(key = logdb_iter_current_key (iter));

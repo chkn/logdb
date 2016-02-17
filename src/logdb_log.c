@@ -52,13 +52,14 @@ typedef enum {
 static logdb_log_header_t* logdb_log_read (int fd, logdb_log_read_mode mode)
 {
 	logdb_log_header_t header;
-	if (logdb_io_read (fd, &header, sizeof (logdb_log_header_t)) != 0) {
+	ssize_t readresult = logdb_io_read (fd, &header, sizeof (logdb_log_header_t));
+	if (readresult > 0) {
 		ELOG("logdb_log_read: read 1");
 		return NULL;
 	}
 
 	/* Validate the header */
-	if ((memcmp (&header.magic, LOGDB_LOG_MAGIC, sizeof (LOGDB_LOG_MAGIC) - 1) != 0)
+	if ((readresult == -1) || (memcmp (&header.magic, LOGDB_LOG_MAGIC, sizeof (LOGDB_LOG_MAGIC) - 1) != 0)
 	 || (header.version != LOGDB_VERSION)) {
 		LOG("logdb_log_read: failed to validate log header");
 		return NULL;
@@ -196,11 +197,12 @@ off_t logdb_log_read_entry (const logdb_log_t* log, logdb_log_entry_t* buf, logd
 	}
 
 	off_t offset = logdb_log_offset (index);
-	if (logdb_io_pread (log->fd, buf, sizeof (logdb_log_entry_t), offset) > 0) {
+	ssize_t result = logdb_io_pread (log->fd, buf, sizeof (logdb_log_entry_t), offset);
+	if (result > 0) {
 		ELOG("logdb_log_read_entry: pread");
 		return -1;
 	}
-	return offset;
+	return (result == -1)? -1 : offset;
 }
 
 int logdb_log_write_entry (logdb_log_t* log, logdb_log_entry_t* buf, logdb_size_t index)

@@ -35,18 +35,13 @@ logdb_iter* logdb_iter_all (logdb_connection* connection)
 
 int logdb_iter_next LOGDB_VERIFY_ITER(logdb_iter_t* iter)
 {
-	if (iter->key) {
-		logdb_buffer_free (iter->key);
-		iter->key = NULL;
-	}
-	if (iter->value) {
-		logdb_buffer_free (iter->value);
-		iter->value = NULL;
-	}
-
-	logdb_size_t index = (iter->lease.connection)? ++(iter->lease.index) : 0;
 	if (iter->lease.len < sizeof (logdb_data_header_t)) {
-		/* No more data left on our current lease-- find the next one */	
+		/* No more data left on our current lease-- find the next one */
+		logdb_size_t index = 0;
+		if (iter->lease.connection) {
+			index = iter->lease.index + 1;
+			logdb_lease_release (&iter->lease);
+		}
 		logdb_log_entry_t entry;
 		while (1) {
 			if (logdb_log_read_entry (iter->connection->log, &entry, index) == -1)
@@ -60,6 +55,22 @@ int logdb_iter_next LOGDB_VERIFY_ITER(logdb_iter_t* iter)
 		/* Take a lease to read the record header for the next index */
 		if (logdb_lease_acqire_read (&iter->lease, iter->connection, index, 0) != 0)
 			return 0;
+	} else {
+		/* Skip past the key and/or value if they weren't read */
+		if (!(iter->key) && (logdb_lease_seek (&iter->lease, iter->record.keylen) == -1))
+			return 0;
+		if (!(iter->value) && (logdb_lease_seek (&iter->lease, iter->record.valuelen) == -1))
+			return 0;
+	}
+
+	/* Dispose the old key/value if they had been read */
+	if (iter->key) {
+		logdb_buffer_free (iter->key);
+		iter->key = NULL;
+	}
+	if (iter->value) {
+		logdb_buffer_free (iter->value);
+		iter->value = NULL;
 	}
 
 	/* Read the next record in our lease */

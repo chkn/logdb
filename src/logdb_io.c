@@ -2,7 +2,7 @@
 
 #include <unistd.h>
 
-size_t logdb_io_read (int fd, void* buf, size_t sz)
+ssize_t logdb_io_read (int fd, void* buf, size_t sz)
 {
     ssize_t bytes;
     char* ix = (char*)buf;
@@ -10,7 +10,7 @@ size_t logdb_io_read (int fd, void* buf, size_t sz)
         ix += bytes;
         sz -= bytes;
     }
-    return sz;
+    return (bytes == 0)? -1 : sz;
 }
 
 size_t logdb_io_write (int fd, const void* ptr, size_t sz)
@@ -24,7 +24,7 @@ size_t logdb_io_write (int fd, const void* ptr, size_t sz)
     return sz;
 }
 
-size_t logdb_io_pread (int fd, void* buf, size_t sz, off_t offs)
+ssize_t logdb_io_pread (int fd, void* buf, size_t sz, off_t offs)
 {
     ssize_t bytes;
     char* ix = (char*)buf;
@@ -33,7 +33,7 @@ size_t logdb_io_pread (int fd, void* buf, size_t sz, off_t offs)
         ix += bytes;
         sz -= bytes;
     }
-    return sz;
+    return (bytes == 0)? -1 : sz;
 }
 
 size_t logdb_io_pwrite (int fd, const void* ptr, size_t sz, off_t offs)

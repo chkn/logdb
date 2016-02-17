@@ -149,7 +149,7 @@ walk:
 	return 0;
 }
 
-size_t logdb_lease_read (logdb_lease_t* lease, const void* buf, logdb_size_t len)
+size_t logdb_lease_read (logdb_lease_t* lease, void* buf, logdb_size_t len)
 {
 	DBGIF(!lease || !buf) {
 		LOG("logdb_lease_read: failed-- lease or buf was NULL");
@@ -187,6 +187,17 @@ size_t logdb_lease_write (logdb_lease_t* lease, const void* buf, logdb_size_t le
 	lease->offset += bytes;
 	lease->len -= bytes;
 	return notwritten;
+}
+
+off_t logdb_lease_seek (logdb_lease_t* lease, off_t offset)
+{
+	DBGIF(((lease->offset + offset) < 0) || (offset > (lease->len))) {
+		LOG("logdb_lease_seek: invalid offset");
+		return -1;
+	}
+	lease->offset += offset;
+	lease->len -= offset;
+	return lease->offset;
 }
 
 void logdb_lease_release (logdb_lease_t* lease)
