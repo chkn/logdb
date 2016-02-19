@@ -1,6 +1,7 @@
 require 'configure'
+require 'ios'
 
-solution "LogDB"
+workspace "LogDB"
 	configurations { "Debug", "DebugVerbose", "Release" }
 
 	filter "configurations:Debug*"
@@ -17,7 +18,6 @@ solution "LogDB"
 
 project "LogDB"
 	language "C"
-	kind "SharedLib"
 
 	files {
 		"include/**.h",
@@ -25,6 +25,9 @@ project "LogDB"
 		"src/**.c"
 	}
 	includedirs { "include" }
+
+	filter "system:not ios"
+		kind "SharedLib"
 
 	filter "system:macosx"
 		linkoptions { '-Wl,-install_name', '-Wl,@loader_path/%{cfg.linktarget.name}' }

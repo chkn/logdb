@@ -29,7 +29,21 @@ Original use case is logging, hence the name.
 1. Git clone
 2. Download Premake 5 from [http://premake.github.io](http://premake.github.io/) and put it in the root of the git checkout.
 3. Change to that directory and run `./premake5 configure` to run the system checks.
-4. If that succeeds, run `./premake5 gmake && make`
+4. If that succeeds, run one of the following:
+
+### Command line build
+
+Currently works on/for Mac OS X only:
+
+	./premake5 gmake && make
+
+### Build/debug in Xcode
+
+	./premake5 xcode4
+
+### Build for iOS
+
+	./premake5 --os=ios xcode4
 
 ## Design
 
@@ -39,9 +53,9 @@ In order to be fully concurrent, LogDB allows multiple writers to write to diffe
 
 2. The log is basically a list of segments in the database file, and the number of bytes in those segments that contain valid data (all data is written contiguously within a segment). Each entry in the log has a fixed length.
 
-3. When a thread or process wishes to _lease_ a segment of the database for writing, it starts at the last entry of the log and walks backward until it finds an entry with enough free space or has hit an arbitrary limit of entries to walk. If the writer does not find an entry with enough free space, or was unable to acquire a lock on the entry (see step 4), it simply appends an entry to the log. Since the size of the entry is so small, this should be atomic on all OSes and file systems.
+3. When a thread or process wishes to _lease_ a segment of the database for writing, it starts at the last entry of the log and walks backward until it finds an entry with enough free space or has hit an arbitrary limit of entries to walk. If the writer does not find an entry with enough free space, it simply appends an entry to the log. Since the size of the entry is so small, this should be atomic on all OSes and file systems.
 
-4. A write lock is taken, via `fcntl`, on the new entry written to the log in step 3 to prevent racing with other writers and to prevent readers from reading inconsistent data. Note that this is a granular lock on this log entry only-- other writers are not blocked.
+4. A write lock is taken, via `fcntl`, on the new entry written to the log in step 3 to prevent racing with other writers and to prevent readers from reading inconsistent data. Note that this is a granular lock on this log entry only-- other writers are not blocked. If the lock cannot be taken at this point, we repeat step 3, remembering how many log entries we've already walked.
 
 5. After the data is written to the portion of the database that corresponds to the locked log entry and is `fsync`d to the database file, that log entry is changed from zero valid bytes to the actual size of the data written. This behavior is what enables the atomic transaction semantics.
 
@@ -55,5 +69,5 @@ In order to be fully concurrent, LogDB allows multiple writers to write to diffe
 
 ## Implementation Notes
 
-- Database files are locked with `flock` (more efficient whole-file locking), while index files are locked with `fcntl` (provides more granular locking).
+- Database files are locked with `flock` (more efficient whole-file locking on some OSes, e.g. Darwin), while index files are locked with `fcntl` (provides more granular locking).
 
