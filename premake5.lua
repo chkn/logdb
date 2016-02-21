@@ -13,7 +13,7 @@ workspace "LogDB"
 		defines { "VERBOSE" }
 
 	filter "configurations:Release"
-		flags { "Optimize" }
+		optimize "Speed"
 		targetdir "bin/Release"
 
 project "LogDB"

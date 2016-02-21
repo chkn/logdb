@@ -10,10 +10,11 @@ Features:
 
 Caveats of current implementation:
 
-- Slower reads.
-- No compression, and database file may have a some wasted space.
-- Only supports `insert` and `select` operations (no `update` nor `delete`).
-- Should be robust against application crashes, but possible data corruption on system-wide failure (e.g. power loss).
+- No indexing yet. The only mode for reading the database is iterating through all records.
+- No compression nor compaction; the database file may have some wasted space. However, the write algorithm attempts to mitigate this.
+- For writing, the size of the entire transaction (including nested transactions) must currently be less than 65KB. We will eliminate this requirement soon.
+- Only supports `put` and `iterate` (read) operations (no `update` nor `delete`).
+- Should be robust against application crashes (and system-wide failures if `LOGDB_OPEN_NOSYNC` is not specified), however this is largely untested as of yet.
 - Developed and tested on OSX and iOS only.
     - Uses mostly POSIX APIs, but some Darwin-specific APIs may have snuck in.
     - May need some changes to work correctly on big endian machines.
@@ -21,7 +22,7 @@ Caveats of current implementation:
 
 ## So, what is it good for?
 
-Original use case is logging, hence the name.
+My original use case was logging, hence the name.
 
 
 ## Build
@@ -37,7 +38,7 @@ Currently works on/for Mac OS X only:
 
 	./premake5 gmake && make
 
-### Build/debug in Xcode
+### Build/debug with Xcode
 
 	./premake5 xcode4
 

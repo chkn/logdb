@@ -34,7 +34,18 @@ typedef enum {
 	 * Create the file if it doesn't exist.
 	 *  If a file does exist but it is not a valid LogDB database, it is overwritten.
 	 */
-	LOGDB_OPEN_CREATE = 1
+	LOGDB_OPEN_CREATE = 1,
+
+	/**
+	 * Do not call `fsync` after writing to database or log. Sacrifices durability for
+	 *  much better write performance. With this option specified, a system-wide failure could
+	 *  cause recent commit(s) to be rolled back. Additionally, this flag makes it unsafe for
+	 *  multiple processes to write to the database; when it is specified, an exclusive lock
+	 *  will be taken on the database when it is opened. This means `logdb_open` will fail if the
+	 *  database is already opened by another process (regardless of whether the other process
+	 *  opened it with `LOGDB_OPEN_NOSYNC`).
+	 */
+	LOGDB_OPEN_NOSYNC = 2
 } logdb_open_flags;
 
 /**

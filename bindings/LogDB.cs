@@ -8,7 +8,8 @@ namespace LogDB {
 
 	public enum OpenFlags {
 		Existing = 0,
-		Create = 1
+		Create = 1,
+		NoSync = 2
 	}
 
 	public class LogDBException : Exception {

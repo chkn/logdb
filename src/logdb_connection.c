@@ -87,6 +87,7 @@ logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 	 */
 	bool retry = true;
 	logdb_log_t* log = NULL;
+	bool nosync = (flags & LOGDB_OPEN_NOSYNC) == LOGDB_OPEN_NOSYNC;
 retry_create:
 	if (flock (fd, LOCK_EX | LOCK_NB) == 0) {
 		log = logdb_log_create (logpath, fd);
@@ -103,12 +104,18 @@ retry_create:
 		}
 	} else {
 		VLOG("logdb_open: failed to acquire exclusive db lock to setup log-- another process must've already done it.");
+		if (nosync) {
+			LOG("logdb_open: LOGDB_OPEN_NOSYNC flag specified and failed to acquire exclusive lock.");
+			close (fd);
+			free (logpath);
+			return NULL;
+		}
 	}
 
 	/* Otherwise, we acquire a shared lock to wait for the other process to finish setting up the log.
 	 *  This will go away when we close the fd.
 	 */
-	if (flock (fd, LOCK_SH) != 0) {
+	if ((!nosync) && (flock (fd, LOCK_SH) != 0)) {
 		ELOG("logdb_open: flock");
 		close (fd);
 		free (logpath);
@@ -158,6 +165,7 @@ retry_create:
 	}
 
 	result->version = LOGDB_VERSION;
+	result->flags = flags;
 	result->fd = fd;
 	result->log = log;
 	return result;

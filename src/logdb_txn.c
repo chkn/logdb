@@ -87,13 +87,14 @@ static int logdb_txn_commit (logdb_connection_t* conn, logdb_txn_t* txn)
 		return -1;
 	}
 
-	if (fsync (conn->fd) == -1) {
+	bool durable = (conn->flags & LOGDB_OPEN_NOSYNC) != LOGDB_OPEN_NOSYNC;
+	if (durable && (fsync (conn->fd) == -1)) {
 		ELOG("logdb_txn_commit: fsync 1");
 		logdb_lease_release (&lease);
 		return -1;
 	}
 
-	/* Update and fsync the log */
+	/* Update the log */
 	logdb_log_entry_t entry;
 	entry.len = lease.offset;
 	if (logdb_log_write_entry (conn->log, &entry, lease.index) != 0) {
@@ -102,8 +103,9 @@ static int logdb_txn_commit (logdb_connection_t* conn, logdb_txn_t* txn)
 		return -1;
 	}
 
-	/* I don't think there's really much we can do if this fails? */ 
-	(void)fsync (conn->log->fd);
+	/* I don't think there's really much we can do if this fails? */
+	if (durable)
+		(void)fsync (conn->log->fd);
 
 	/* Release the lease */
 	logdb_lease_release (&lease);
@@ -133,8 +135,10 @@ int logdb_begin LOGDB_VERIFY_CONNECTION(logdb_connection_t* conn)
 
 int logdb_put LOGDB_VERIFY_CONNECTION(logdb_connection_t* conn, logdb_buffer* key, logdb_buffer* value)
 {
-	if (!key || !value)
+	DBGIF(!key || !value) {
+		LOG("logdb_put: key or value was null");
 		return -1;
+	}
 
 	/* Create record header */
 	logdb_data_header_t header;

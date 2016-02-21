@@ -32,6 +32,7 @@ typedef struct {
 typedef struct {
 	unsigned short version; /**< version of logdb structure. Should equal LOGDB_VERSION */
 	pthread_rwlock_t lock; /**< protects threaded access to this `logdb_connection_t` */
+	logdb_open_flags flags; /**< the flags used when opening this connection */
 
 	int fd; /**< file descriptor of database file */
 	logdb_log_t* log; /**< struct containing fd and metadata about the log file */
