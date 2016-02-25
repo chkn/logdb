@@ -112,8 +112,10 @@ logdb_log_t* logdb_log_open (const char* path)
 		return NULL;
 	}
 
-	if (!logdb_log_read (fd, LOGDB_VALIDATE_ONLY))
+	if (!logdb_log_read (fd, LOGDB_VALIDATE_ONLY)) {
+		close (fd);
 		return NULL;
+	}
 
 	return logdb_log_new (fd, path);
 }
@@ -176,17 +178,36 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		return NULL;
 	}
 
-	if (logdb_io_write (logfd, header, logsz) != 0) {
-		ELOG("logdb_log_create: write");
+	/* Write the log content before the header. This way, if we crash while doing this,
+	    we can gracefully recover next time.
+	*/
+	if ((logsz > sizeof (logdb_log_header_t)) && (logdb_io_pwrite (logfd, header + 1, logsz - sizeof (logdb_log_header_t), sizeof (logdb_log_header_t)) != 0))
+		goto logwritefail;
+
+#if DEBUG
+	if (getenv ("LOGDB_TEST_LOG_CREATE_RETURN_EARLY")) {
 		free (header);
 		close (logfd);
-		/* don't leave a partially written log laying around */
-		unlink (path);
 		return NULL;
 	}
-	free (header);
+#endif
 
+	/* Now write the header to indicate this log file is valid. Note that this doesn't
+	    strictly need to be done atomically because we verify all parts of the header.
+	*/
+	if (logdb_io_pwrite (logfd, header, sizeof (logdb_log_header_t), 0) != 0)
+		goto logwritefail;
+
+	free (header);
 	return logdb_log_new (logfd, path);
+
+logwritefail:
+	ELOG("logdb_log_create: write");
+	free (header);
+	close (logfd);
+	/* don't leave a partially written log laying around */
+	unlink (path);
+	return NULL;
 }
 
 off_t logdb_log_read_entry (const logdb_log_t* log, logdb_log_entry_t* buf, logdb_size_t index)

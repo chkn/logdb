@@ -90,22 +90,37 @@ logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 	bool nosync = (flags & LOGDB_OPEN_NOSYNC) == LOGDB_OPEN_NOSYNC;
 retry_create:
 	if (flock (fd, LOCK_EX | LOCK_NB) == 0) {
+retry_create_locked:
 		log = logdb_log_create (logpath, fd);
 		if (!log) {
-			VLOG("logdb_open: failed to create log-- there may be an existing one that needs recovery.");
+			VLOG("logdb_open: failed to create log-- there may be an existing one that needs recovery");
 			/* We can end up here if:
-			 *  1) Another process crashed while creating the log previously.
-			 *  2) The DB was previouly open by other process(es) who all failed to close it.
+			 *  1) The DB was previouly open by other process(es) who all failed to close it.
+			 *  2) The log is corrupt. This can happen if, for example, another process crashed
+			 *       while creating the log previously.
+			 * Since we have the exclusive lock on the db, we're free to investigate.
+			 *  In the case of (1) above, we can just open the existing log and go from there..
 			 */
-			 /* FIXME: Determine which of the above cases it is and recover */
-			 close (fd);
-			 free (logpath);
-			 return NULL;
+			 log = logdb_log_open (logpath);
+			 if (!log) {
+				/* If we get here, the log is corrupt. This can happen for various reasons,
+				 *  but there's not much we can do about it either way. All we can do is delete
+				 *  the log and hope there is an intact one at the end of the db file.
+				 */
+				if ((!retry) || (unlink (logpath) == -1)) {
+					LOG("logdb_open: failed to recover corrupt log");
+					close (fd);
+					free (logpath);
+					return NULL;
+				}
+				retry = false;
+				goto retry_create_locked;
+			 }
 		}
 	} else {
-		VLOG("logdb_open: failed to acquire exclusive db lock to setup log-- another process must've already done it.");
+		VLOG("logdb_open: failed to acquire exclusive db lock to setup log-- another process must've already done it");
 		if (nosync) {
-			LOG("logdb_open: LOGDB_OPEN_NOSYNC flag specified and failed to acquire exclusive lock.");
+			LOG("logdb_open: LOGDB_OPEN_NOSYNC flag specified and failed to acquire exclusive lock");
 			close (fd);
 			free (logpath);
 			return NULL;
@@ -131,7 +146,7 @@ retry_create:
 				 to get the exclusive lock. So we'll retry once if we haven't already.
 			*/
 			if (retry) {
-				VLOG("logdb_open: failed to open log after acquiring shared db lock-- trying to create again.");
+				VLOG("logdb_open: failed to open log after acquiring shared db lock-- trying to create again");
 				retry = false;
 				goto retry_create;
 			}

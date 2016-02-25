@@ -107,3 +107,49 @@ TEST(Put1)
 	unlink("temp.logdb");
 	PASS;
 }
+
+TEST(LogRecovery)
+{
+	logdb_connection* conn;
+	ASSERT(conn = logdb_open("temp.logdb", LOGDB_OPEN_CREATE));
+	
+	logdb_buffer *key, *val;
+	ASSERT(key = logdb_buffer_new_direct ("foo", 3, NULL));
+	ASSERT(val = logdb_buffer_new_direct ("bar!", 4, NULL));
+	ASSERT(!logdb_put (conn, key, val));
+	logdb_buffer_free (key);
+	logdb_buffer_free (val);
+
+	ASSERT(!logdb_close(conn));
+
+	ASSERT(!setenv ("LOGDB_TEST_LOG_CREATE_RETURN_EARLY", "1", 1));
+	ASSERT(!logdb_open("temp.logdb", LOGDB_OPEN_EXISTING));
+	ASSERT(!unsetenv ("LOGDB_TEST_LOG_CREATE_RETURN_EARLY"));
+	
+	ASSERT(conn = logdb_open("temp.logdb", LOGDB_OPEN_EXISTING));
+	
+	logdb_iter* iter;
+	ASSERT(iter = logdb_iter_all (conn));
+	ASSERT(logdb_iter_next (iter));
+
+	ASSERT(key = logdb_iter_current_key (iter));
+	ASSERT(val = logdb_iter_current_value (iter));
+
+	ASSERT(3 == logdb_buffer_length (key));
+	ASSERT(4 == logdb_buffer_length (val));
+
+	const char* data;
+	ASSERT(data = (const char*)logdb_buffer_data (key));
+	ASSERT(!strncmp (data, "foo", 3));
+
+	ASSERT(data = (const char*)logdb_buffer_data (val));
+	ASSERT(!strncmp (data, "bar!", 4));
+
+	ASSERT(!logdb_iter_next (iter));
+
+	logdb_iter_free (iter);
+	
+	ASSERT(!logdb_close(conn));
+	unlink("temp.logdb");
+	PASS;
+}

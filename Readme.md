@@ -11,6 +11,7 @@ Features:
 Caveats of current implementation:
 
 - No indexing yet. The only mode for reading the database is iterating through all records.
+- Reads do not interact with transactions. There is no way to read uncommitted writes.
 - No compression nor compaction; the database file may have some wasted space. However, the write algorithm attempts to mitigate this.
 - For writing, the size of the entire transaction (including nested transactions) must currently be less than 65KB. We will eliminate this requirement soon.
 - Only supports `put` and `iterate` (read) operations (no `update` nor `delete`).
@@ -60,15 +61,8 @@ In order to be fully concurrent, LogDB allows multiple writers to write to diffe
 
 5. After the data is written to the portion of the database that corresponds to the locked log entry and is `fsync`d to the database file, that log entry is changed from zero valid bytes to the actual size of the data written. This behavior is what enables the atomic transaction semantics.
 
-## Still TO DO
-
-- Recovery when a log is left because the application previously crashed or failed to properly close the database for another reason.
-- Support for transactions larger than 65KB
-- Garbage collection/defragmentation
-
-
 
 ## Implementation Notes
 
-- Database files are locked with `flock` (more efficient whole-file locking on some OSes, e.g. Darwin), while index files are locked with `fcntl` (provides more granular locking).
+- Database files are locked with `flock` (more efficient whole-file locking on some OSes, e.g. Darwin), while log files are locked with `fcntl` (provides more granular locking).
 
