@@ -35,19 +35,23 @@ My original use case was logging, hence the name.
 
 ### Command line build
 
-	./premake5 gmake && make
+	$ ./premake5 gmake && make
 
 ### Create Xcode project for Mac
 
-	./premake5 xcode4
+	$ ./premake5 xcode4
 
 ### Create Xcode project for iOS
 
-	./premake5 --os=ios xcode4
+	$ ./premake5 --os=ios xcode4
 
 ### Build for Xamarin.iOS
 
-	xbuild bindings/C#/LogDB.iOS.csproj
+	$ xbuild bindings/C#/LogDB.iOS.csproj
+
+### Clean
+
+	$ ./premake5 clean
 
 
 ## Design

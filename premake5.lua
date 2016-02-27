@@ -63,3 +63,22 @@ project "StressTestDump"
 	}
 	links { "LogDB" }
 	includedirs { "include" }
+
+newaction {
+	trigger     = "clean",
+	description = "Remove all binaries and generated files",
+
+	execute = function()
+		os.rmdir("bin")
+		os.rmdir("obj")
+		os.rmdir("DerivedData")
+		os.rmdir(path.join("bindings", "C#", "obj"))
+		for i, dir in ipairs(os.matchdirs("*.xc*")) do
+			os.rmdir(dir)
+		end
+		os.remove("Makefile")
+		for i, file in ipairs(os.matchfiles("*.make")) do
+			os.remove(file)
+		end
+	end
+}
