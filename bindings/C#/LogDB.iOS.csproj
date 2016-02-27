@@ -9,12 +9,13 @@
     <RootNamespace>LogDB</RootNamespace>
     <AssemblyName>LogDB.iOS</AssemblyName>
     <IPhoneResourcePrefix>Resources</IPhoneResourcePrefix>
+    <ReleaseVersion>0.0.1-pre1</ReleaseVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\..\bin\Debug</OutputPath>
+    <OutputPath>bin\Debug</OutputPath>
     <DefineConstants>DEBUG;</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -23,7 +24,7 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <Optimize>true</Optimize>
-    <OutputPath>..\..\bin\Release</OutputPath>
+    <OutputPath>bin\Release</OutputPath>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <ConsolePause>false</ConsolePause>
@@ -34,7 +35,7 @@
     <Reference Include="Xamarin.iOS" />
   </ItemGroup>
   <ItemGroup>
-    <NativeReference Include="..\..\bin\Debug\libLogDB.a">
+    <NativeReference Include="..\..\bin\$(Configuration)\libLogDB.a">
       <Kind>Static</Kind>
       <SmartLink>False</SmartLink>
     </NativeReference>
@@ -85,4 +86,8 @@
       _DeleteDummyApiDefinition
     </CompileDependsOn>
   </PropertyGroup>
+  <!-- Target for packaging for NuGet -->
+  <Target Name="Pack" DependsOnTargets="Build">
+    <Exec Command="nuget pack LogDB.nuspec -Properties version=$(ReleaseVersion) -Properties configuration=$(Configuration)" />
+  </Target>
 </Project>

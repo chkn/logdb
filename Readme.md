@@ -53,6 +53,10 @@ My original use case was logging, hence the name.
 
 	$ ./premake5 clean
 
+### Create Nuget Package for C# bindings
+
+	$ xbuild bindings/C#/LogDB.iOS.csproj /t:Pack /p:Configuration=Release
+
 
 ## Design
 
