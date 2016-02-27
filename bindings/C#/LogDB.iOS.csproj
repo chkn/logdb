@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{FECF75D4-0B9C-4796-B077-71B5DF9C8131}</ProjectGuid>
+    <ProjectTypeGuids>{8FFB629D-F513-41CE-95D2-7ECE97B6EEEC};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <OutputType>Library</OutputType>
+    <RootNamespace>LogDB</RootNamespace>
+    <AssemblyName>LogDB.iOS</AssemblyName>
+    <IPhoneResourcePrefix>Resources</IPhoneResourcePrefix>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\..\bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <Optimize>true</Optimize>
+    <OutputPath>..\..\bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="Xamarin.iOS" />
+  </ItemGroup>
+  <ItemGroup>
+    <NativeReference Include="..\..\bin\Debug\libLogDB.a">
+      <Kind>Static</Kind>
+      <SmartLink>False</SmartLink>
+    </NativeReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="LogDB.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ObjcBindingApiDefinition Include="Dummy.cs">
+      <Visible>False</Visible>
+    </ObjcBindingApiDefinition>
+  </ItemGroup>
+  <PropertyGroup>
+    <PremakeDir Condition="'$(PremakeDir)' == ''">..\..</PremakeDir>
+    <PremakeBin Condition="'$(PremakeBin)' == ''">premake5</PremakeBin>
+  </PropertyGroup>
+  <ItemGroup>
+    <PremakeScript Include="..\..\*.lua" />
+    <XcodeProject Include="..\..\LogDB.xcodeproj">
+      <Visible>False</Visible>
+    </XcodeProject>
+  </ItemGroup>
+  <Target Name="_CreateDummyApiDefinition">
+    <Touch AlwaysCreate="true" Files="@(ObjcBindingApiDefinition)" />
+  </Target>
+  <Target Name="_DeleteDummyApiDefinition">
+    <Delete Files="@(ObjcBindingApiDefinition)" />
+  </Target>
+  <Target Name="_GenerateXcodeProject" Inputs="@(PremakeScript)" Outputs="@(XcodeProject)">
+    <Error Text="Download Premake from https://premake.github.io and put it in the root of the logdb checkout." Condition="!Exists('$(PremakeDir)/$(PremakeBin)')" />
+    <Exec Command="./$(PremakeBin) --os=ios xcode4" WorkingDirectory="$(PremakeDir)" />
+  </Target>
+  <Target Name="BuildNativeLib" DependsOnTargets="_GenerateXcodeProject">
+    <ItemGroup>
+      <IPhoneOS Include="@(NativeReference->'%(RelativeDir)\%(Filename)-iphoneos%(Extension)')" />
+      <IPhoneSimulator Include="@(NativeReference->'%(RelativeDir)\%(Filename)-iphonesimulator%(Extension)')" />
+    </ItemGroup>
+    <Exec Command="xcodebuild -project @(XcodeProject) -configuration $(Configuration) -sdk iphoneos EXECUTABLE_PATH=@(IPhoneOS->'%(Filename)%(Extension)')" />
+    <Exec Command="xcodebuild -project @(XcodeProject) -configuration $(Configuration) -sdk iphonesimulator EXECUTABLE_PATH=@(IPhoneSimulator->'%(Filename)%(Extension)')" />
+    <Exec Command="xcrun -sdk iphoneos lipo -create -output @(NativeReference) @(IPhoneOS) @(IPhoneSimulator)" />
+  </Target>
+  <Import Project="$(MSBuildExtensionsPath)\Xamarin\iOS\Xamarin.iOS.ObjCBinding.CSharp.targets" />
+  <PropertyGroup>
+    <CompileDependsOn>
+      BuildNativeLib;
+      _CreateDummyApiDefinition;
+      $(CompileDependsOn);
+      _DeleteDummyApiDefinition
+    </CompileDependsOn>
+  </PropertyGroup>
+</Project>

@@ -17,6 +17,7 @@ filter "system:ios"
 	xcodebuildsettings
 	{
 		["ARCHS"] = "$(ARCHS_STANDARD)";
+		["ONLY_ACTIVE_ARCH"] = "NO";
 		["SDKROOT"] = "iphoneos";
 		["SUPPORTED_PLATFORMS"] = "iphonesimulator iphoneos";
 	}

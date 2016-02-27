@@ -35,17 +35,20 @@ My original use case was logging, hence the name.
 
 ### Command line build
 
-Currently works on/for Mac OS X only:
-
 	./premake5 gmake && make
 
-### Build/debug with Xcode
+### Create Xcode project for Mac
 
 	./premake5 xcode4
 
-### Build for iOS
+### Create Xcode project for iOS
 
 	./premake5 --os=ios xcode4
+
+### Build for Xamarin.iOS
+
+	xbuild bindings/C#/LogDB.iOS.csproj
+
 
 ## Design
 

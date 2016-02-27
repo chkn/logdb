@@ -238,7 +238,13 @@ namespace LogDB {
 	}
 
 	static class Native {
-		const string Library = "LogDB";
+		const string Library =
+		#if __IOS__
+		"__Internal"
+		#else
+		"LogDB"
+		#endif
+		;
 
 		[DllImport (Library)]
 		public static extern IntPtr logdb_open (string path, OpenFlags flags);
