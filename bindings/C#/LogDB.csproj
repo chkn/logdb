@@ -35,15 +35,10 @@
   <ItemGroup>
     <Compile Include="LogDB.cs" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <PremakeAction>gmake</PremakeAction>
-  </PropertyGroup>
   <Import Project="Premake.targets" />
-
   <Target Name="BuildNativeLib" DependsOnTargets="RunPremake">
-    <Exec Command="make config=$(Configuration.ToLowerInvariant())" WorkingDirectory="..\.." />
-    <Copy SourceFiles="..\..\bin\Release\libLogDB.dylib" DestinationFolder="$(OutputPath)" />
+    <Exec Command="xcodebuild -project @(XcodeProject) -configuration $(Configuration)" />
+	<Copy SourceFiles="..\..\bin\$(Configuration)\libLogDB.dylib" DestinationFolder="$(OutputPath)" />
   </Target>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

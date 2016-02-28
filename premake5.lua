@@ -32,6 +32,14 @@ project "LogDB"
 	filter "system:macosx"
 		linkoptions { '-Wl,-install_name', '-Wl,@loader_path/%{cfg.linktarget.name}' }
 
+	filter "configurations:Release"
+		-- build universal binary for release
+		xcodebuildsettings
+		{
+			["ARCHS"] = "$(ARCHS_STANDARD_32_64_BIT)";
+			["ONLY_ACTIVE_ARCH"] = "NO";
+		}
+
 project "Tests"
 	language "C"
 	kind "ConsoleApp"

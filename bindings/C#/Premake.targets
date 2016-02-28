@@ -3,9 +3,15 @@
 	<PropertyGroup>
 		<PremakeDir Condition="'$(PremakeDir)' == ''">..\..</PremakeDir>
 		<PremakeBin Condition="'$(PremakeBin)' == ''">.\premake5</PremakeBin>
+		<PremakeAction Condition="'$(PremakeAction)' == ''">xcode4</PremakeAction>
 	</PropertyGroup>
 	<Target Name="RunPremake">
 		<Error Text="Download Premake from https://premake.github.io and put it in the root of the logdb checkout." Condition="!Exists('$(PremakeDir)\$(PremakeBin)')" />
 		<Exec Command="$(PremakeBin) $(PremakeArgs) $(PremakeAction)" WorkingDirectory="$(PremakeDir)" />
+
+		<CreateItem Condition="'$(PremakeAction)' == 'xcode4'"
+			Include="..\..\LogDB.xcodeproj">
+			<Output TaskParameter="Include" ItemName="XcodeProject" />
+		</CreateItem>
 	</Target>
 </Project>
