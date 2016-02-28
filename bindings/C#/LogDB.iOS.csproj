@@ -48,28 +48,22 @@
       <Visible>False</Visible>
     </ObjcBindingApiDefinition>
   </ItemGroup>
-  <PropertyGroup>
-    <PremakeDir Condition="'$(PremakeDir)' == ''">..\..</PremakeDir>
-    <PremakeBin Condition="'$(PremakeBin)' == ''">premake5</PremakeBin>
-  </PropertyGroup>
-  <ItemGroup>
-    <PremakeScript Include="..\..\*.lua" />
-    <XcodeProject Include="..\..\LogDB.xcodeproj">
-      <Visible>False</Visible>
-    </XcodeProject>
-  </ItemGroup>
   <Target Name="_CreateDummyApiDefinition">
     <Touch AlwaysCreate="true" Files="@(ObjcBindingApiDefinition)" />
   </Target>
   <Target Name="_DeleteDummyApiDefinition">
     <Delete Files="@(ObjcBindingApiDefinition)" />
   </Target>
-  <Target Name="_GenerateXcodeProject" Inputs="@(PremakeScript)" Outputs="@(XcodeProject)">
-    <Error Text="Download Premake from https://premake.github.io and put it in the root of the logdb checkout." Condition="!Exists('$(PremakeDir)/$(PremakeBin)')" />
-    <Exec Command="./$(PremakeBin) --os=ios xcode4" WorkingDirectory="$(PremakeDir)" />
-  </Target>
-  <Target Name="BuildNativeLib" DependsOnTargets="_GenerateXcodeProject">
+
+  <PropertyGroup>
+    <PremakeArgs>--os=ios</PremakeArgs>
+    <PremakeAction>xcode4</PremakeAction>
+  </PropertyGroup>
+  <Import Project="Premake.targets" />
+
+  <Target Name="BuildNativeLib" DependsOnTargets="RunPremake">
     <ItemGroup>
+      <XcodeProject Include="..\..\LogDB.xcodeproj" />
       <IPhoneOS Include="@(NativeReference->'%(RelativeDir)\%(Filename)-iphoneos%(Extension)')" />
       <IPhoneSimulator Include="@(NativeReference->'%(RelativeDir)\%(Filename)-iphonesimulator%(Extension)')" />
     </ItemGroup>
@@ -86,8 +80,4 @@
       _DeleteDummyApiDefinition
     </CompileDependsOn>
   </PropertyGroup>
-  <!-- Target for packaging for NuGet -->
-  <Target Name="Pack" DependsOnTargets="Build">
-    <Exec Command="nuget pack LogDB.nuspec -Properties version=$(ReleaseVersion) -Properties configuration=$(Configuration)" />
-  </Target>
 </Project>

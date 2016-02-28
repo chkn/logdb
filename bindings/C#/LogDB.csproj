@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{29BD0D7D-7ABC-4503-82B2-71A1FB265B7D}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>LogDB</RootNamespace>
+    <AssemblyName>LogDB</AssemblyName>
+    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
+    <ReleaseVersion>0.0.1-pre1</ReleaseVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG;</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <ConsolePause>false</ConsolePause>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="LogDB.cs" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <PremakeAction>gmake</PremakeAction>
+  </PropertyGroup>
+  <Import Project="Premake.targets" />
+
+  <Target Name="BuildNativeLib" DependsOnTargets="RunPremake">
+    <Exec Command="make config=$(Configuration.ToLowerInvariant())" WorkingDirectory="..\.." />
+    <Copy SourceFiles="..\..\bin\Release\libLogDB.dylib" DestinationFolder="$(OutputPath)" />
+  </Target>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <BuildDependsOn>
+      $(BuildDependsOn);
+      BuildNativeLib
+    </BuildDependsOn>
+  </PropertyGroup>
+</Project>

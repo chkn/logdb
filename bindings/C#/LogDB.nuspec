@@ -1,28 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
-   <metadata minClientVersion="2.8.1">
-    <id>LogDB</id>
-    <title>LogDB</title>
-    <version>$version$</version>
-    <authors>Alex Corrado</authors>
-    <owners>Alex Corrado</owners>
+	<metadata minClientVersion="2.8.1">
+		<id>LogDB</id>
+		<title>LogDB</title>
+		<version>$version$</version>
+		<authors>Alex Corrado</authors>
+		<owners>Alex Corrado</owners>
 
-    <projectUrl>https://github.com/chkn/logdb</projectUrl>
-    <!-- <licenseUrl>https://github.com/chkn/Blackbox/blob/master/License.md</licenseUrl> -->
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<projectUrl>https://github.com/chkn/logdb</projectUrl>
+		<!-- <licenseUrl>https://github.com/chkn/Blackbox/blob/master/License.md</licenseUrl> -->
+		<requireLicenseAcceptance>false</requireLicenseAcceptance>
 
-    <summary>A write-optimized, in-process key-value storage engine with multiple values per key.</summary>
-    <description>A write-optimized, in-process key-value storage engine with multiple values per key.
+		<summary>A write-optimized, in-process key-value storage engine with multiple values per key.</summary>
+		<description>A write-optimized, in-process key-value storage engine with multiple values per key.
 
-This package currently supplies binaries for Xamarin.iOS only. For standard .NET projects, a C# source file will be added to your project and you will need to ensure the proper LogDB dynamic library is available for P/Invoke.
-    </description>
-    <tags>xamarin android ios logging storage database db engine key value</tags>
-   </metadata>
-   <files>
-    <!--Xamarin.iOS Unified-->
-    <file src="bin/$configuration$/LogDB.iOS.dll" target="lib\Xamarin.iOS10\LogDB.iOS.dll" />
+This package currently supplies native binaries for Xamarin.iOS and the full framework on Mac. For other platforms, you will need to provide a LogDB dynamic library for P/Invoke.
+		</description>
+		<tags>xamarin android ios logging storage database db engine key value</tags>
+	</metadata>
+	<files>
+		<!--Xamarin.iOS Unified-->
+		<file src="bin/$configuration$/LogDB.iOS.dll" target="lib\Xamarin.iOS10\LogDB.dll" />
 
-    <!-- Other C# -->
-    <file src="LogDB.cs" target="content\net\LogDB.cs" />
-   </files>
+		<!-- Full framework -->
+		<file src="bin/$configuration$/LogDB.dll" target="lib\net\LogDB.dll" />
+		<file src="nuget/LogDB.targets" target="build\net\LogDB.targets" />
+		<file src="bin/$configuration$/libLogDB.dylib" target="build\net\Mac\libLogDB.dylib" />
+	</files>
 </package>

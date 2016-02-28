@@ -55,7 +55,7 @@ My original use case was logging, hence the name.
 
 ### Create Nuget Package for C# bindings
 
-	$ xbuild bindings/C#/LogDB.iOS.csproj /t:Pack /p:Configuration=Release
+	$ xbuild bindings/C#/Bindings.sln /p:Configuration=Release
 
 
 ## Design

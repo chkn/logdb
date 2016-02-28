@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<PropertyGroup>
+		<PremakeDir Condition="'$(PremakeDir)' == ''">..\..</PremakeDir>
+		<PremakeBin Condition="'$(PremakeBin)' == ''">.\premake5</PremakeBin>
+	</PropertyGroup>
+	<Target Name="RunPremake">
+		<Error Text="Download Premake from https://premake.github.io and put it in the root of the logdb checkout." Condition="!Exists('$(PremakeDir)\$(PremakeBin)')" />
+		<Exec Command="$(PremakeBin) $(PremakeArgs) $(PremakeAction)" WorkingDirectory="$(PremakeDir)" />
+	</Target>
+</Project>

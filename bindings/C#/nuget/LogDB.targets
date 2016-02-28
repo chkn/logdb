@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<PropertyGroup>
+		<BuildDependsOn>
+			CopyLogDBNativeBinary;
+			$(BuildDependsOn)
+		</BuildDependsOn>
+	</PropertyGroup>
+	<PropertyGroup>
+		<!-- We don't package Windows binaries yet -->
+		<!-- <_RealOS Condition="'$(_RealOS)' == '' And '$(OS)' == 'Windows_NT'">Win</_RealOS> -->
+
+		<!-- It seems coreCLR msbuild returns 'OSX' for Mac, but Mono's xbuild still returns 'Unix' -->
+		<_RealOS Condition="'$(_RealOS)' == '' And '$(OS)' == 'OSX'">Mac</_RealOS>
+		<_RealOS Condition="'$(_RealOS)' == '' And '$(OS)' == 'Unix' And Exists('/System/Library/CoreServices/SystemVersion.plist')">Mac</_RealOS>
+	</PropertyGroup>
+	<ItemGroup>
+		<_LogDBLib Include="$(MSBuildThisFileDirectory)\$(_RealOS)\*" />
+	</ItemGroup>
+	<Target Name="CopyLogDBNativeBinary">
+
+		<Message Condition="'$(_RealOS)' == ''" Importance="High"
+			Text="The LogDB NuGet package does not supply a native binary for your platform. You must furnish an appropriate build of the LogDB library." />
+
+		<CreateItem Condition="'$(_RealOS)' != ''"
+			Include="@(_LogDBLib)"
+			AdditionalMetadata="Link=%(Filename)%(Extension);CopyToOutputDirectory=PreserveNewest">
+			<Output TaskParameter="Include" ItemName="Content" />
+		</CreateItem>
+	</Target>
+</Project>
