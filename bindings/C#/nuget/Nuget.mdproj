@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Pack" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 	<PropertyGroup>
-		<NuSpec>..\LogDB.nuspec</NuSpec>
-	</PropertyGroup>
-	<PropertyGroup>
 		<Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
 		<Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
 		<ItemType>GenericProject</ItemType>
 		<ProjectGuid>{523306B3-39CE-4E2F-B8E7-F6178265D38F}</ProjectGuid>
+
+		<NuSpec>..\LogDB.nuspec</NuSpec>
 		<ReleaseVersion>0.0.1-pre1</ReleaseVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">

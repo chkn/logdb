@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace LogDB {
 
+	[Flags]
 	public enum OpenFlags {
 		Existing = 0,
 		Create = 1,
@@ -17,6 +18,9 @@ namespace LogDB {
 		{
 		}
 	}
+
+	[UnmanagedFunctionPointer (CallingConvention.Cdecl)]
+	public delegate void LogDBDisposerFunc (IntPtr ptr);
 
 	public sealed class LogDBConnection : IEnumerable<KeyValuePair<LogDBBuffer,LogDBBuffer>>, IDisposable {
 
@@ -185,7 +189,7 @@ namespace LogDB {
 			handle = native;
 		}
 
-		public LogDBBuffer (IntPtr data, uint length, Action<IntPtr> disposer)
+		public LogDBBuffer (IntPtr data, uint length, LogDBDisposerFunc disposer)
 		{
 			handle = Native.logdb_buffer_new_direct (data, length, disposer);
 			if (handle == IntPtr.Zero)
@@ -268,7 +272,7 @@ namespace LogDB {
 		public static extern void logdb_iter_free (IntPtr iter);
 		
 		[DllImport (Library)]
-		public static extern IntPtr logdb_buffer_new_direct (IntPtr data, uint length, Action<IntPtr> disposer);
+		public static extern IntPtr logdb_buffer_new_direct (IntPtr data, uint length, LogDBDisposerFunc disposer);
 
 		[DllImport (Library)]
 		public static extern IntPtr logdb_buffer_new_copy (IntPtr data, uint length);
