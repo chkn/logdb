@@ -77,7 +77,7 @@ const void* logdb_buffer_data (const logdb_buffer* buffer)
 {
 	logdb_buffer_t* buf = (logdb_buffer_t*)buffer;
 	DBGIF(!buf) {
-		LOG("logdb_buffer_data: passed buffer was null");
+		LOG("logdb_buffer_data: passed buffer was NULL");
 		return NULL;
 	}
 	/* If we're just a shallow copy, return the orignal's data */
@@ -85,6 +85,7 @@ const void* logdb_buffer_data (const logdb_buffer* buffer)
 		return logdb_buffer_data (buf->orig);
 
 	/* If we have a linked list of data, we'll need to make a copy */
+	/* FIXME: This `if` should probably be protected by a mutex. */
 	if (buf->next) {
 		logdb_size_t newlen = logdb_buffer_length (buffer);
 		void* newdata = malloc (newlen);
@@ -99,8 +100,10 @@ const void* logdb_buffer_data (const logdb_buffer* buffer)
 			if (cur->orig) {
 				logdb_size_t len = logdb_buffer_length (cur->orig);
 				const void* data = logdb_buffer_data (cur->orig);
-				if (!data)
+				if (!data) {
+					free (newdata);
 					return NULL;
+				}
 				(void)memcpy (dataptr, data, len);
 				dataptr += len;
 			} else {
@@ -111,13 +114,12 @@ const void* logdb_buffer_data (const logdb_buffer* buffer)
 		} while (cur);
 
 		/* Dispose the old data and use our new data instead */
-		if (buf->disposer) {
+		if (buf->disposer)
 			buf->disposer (buf->data);
-			buf->disposer = NULL;
-		}
 		buf->data = newdata;
 		buf->len = newlen;
 		buf->next = NULL;
+		buf->disposer = &free;
 	}
 	return buf->data;
 }

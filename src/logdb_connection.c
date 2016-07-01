@@ -51,7 +51,7 @@ logdb_connection* logdb_open (const char* path, logdb_open_flags flags)
 		VLOG("logdb_open: writing db header");
 
 		logdb_header_t header;
-		strcpy (header.magic, LOGDB_MAGIC);
+		(void)strncpy (header.magic, LOGDB_MAGIC, sizeof (header.magic));
 		header.version = LOGDB_VERSION;
 
 		if (logdb_io_write (fd, &header, sizeof (header)) != 0) {

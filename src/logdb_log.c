@@ -141,7 +141,7 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 		}
 
 		logdb_trailer_t trailer;
-		if (logdb_io_read (dbfd, &trailer, sizeof (logdb_trailer_t)) != 0) {
+		if (logdb_io_read (dbfd, &trailer, sizeof (logdb_trailer_t)) > 0) {
 			ELOG("logdb_log_create: read");
 			return NULL;
 		}
@@ -167,7 +167,7 @@ logdb_log_t* logdb_log_create (const char* path, int dbfd)
 			return NULL;
 		}
 
-		strcpy (header->magic, LOGDB_LOG_MAGIC);
+		(void)strncpy (header->magic, LOGDB_LOG_MAGIC, sizeof (header->magic));
 		header->version = LOGDB_VERSION;
 	}
 

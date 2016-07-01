@@ -1,17 +1,30 @@
 
 TEST(Buffers)
 {
-	logdb_buffer *buf1, *buf2;
+	const char* data;
+	logdb_buffer *buf1, *buf2, *buf3;
 	ASSERT(buf1 = logdb_buffer_new_copy ("foo", 3));
 	ASSERT(buf2 = logdb_buffer_new_copy ("bar", 3));
+	ASSERT(buf3 = logdb_buffer_new_direct ("baz", 3, NULL));
 
 	ASSERT(logdb_buffer_append (buf1, buf2));
 	ASSERT(6 == logdb_buffer_length (buf1));
+	ASSERT(3 == logdb_buffer_length (buf2));
 
-	const char* data;
 	ASSERT(data = (const char*)logdb_buffer_data (buf1));
-
 	ASSERT(!strncmp (data, "foobar", 6));
+
+	ASSERT(logdb_buffer_append (buf1, buf3));
+	ASSERT(9 == logdb_buffer_length (buf1));
+	ASSERT(3 == logdb_buffer_length (buf2));
+	ASSERT(3 == logdb_buffer_length (buf3));
+
+	ASSERT(data = (const char*)logdb_buffer_data (buf1));
+	ASSERT(!strncmp (data, "foobarbaz", 9));
+
+	logdb_buffer_free (buf1);
+	logdb_buffer_free (buf2);
+	logdb_buffer_free (buf3);
 	PASS;
 }
 
