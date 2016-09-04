@@ -33,14 +33,18 @@ int main (int argc, char **argv) {
 	if (argc != 5) {
 		printf("Usage: %s [file] [key] [threads] [count]\n\nWhere:\n\n", basename(argv[0]));
 		printf("\t[file]\t\tThe name of the db file to open/create\n");
-		printf("\t[key]\t\tThe prefix to use for the keys added by this process (suffix will have thread #)\n");
+		printf("\t[key]\t\tThe prefix to use for the keys added by this process\n");
+		printf("\t\t\t  - Env var LOGDB_STRESS_KEY_PREFIX will override this. Suffix will have thread # unless LOGDB_STRESS_KEY_SUFFIX is set.\n");
 		printf("\t[threads]\tThe number of threads to create in this process\n");
 		printf("\t[count]\t\tThe number of iterations per thread\n");
 		return 1;
 	}
 	
 	const char* file = argv[1];
-	const char* keyprefix = argv[2];
+	const char* keyprefix = getenv("LOGDB_STRESS_KEY_PREFIX");
+	if (!keyprefix)
+		keyprefix = argv[2];
+
 	int threadcnt = atoi(argv[3]);
 	if (!threadcnt) {
 		printf("Invalid number of threads!\n");
@@ -66,13 +70,18 @@ int main (int argc, char **argv) {
 	}
 
 	for (int i = 0; i < threadcnt; i++) {
-		char* key = (char*)malloc (strlen (keyprefix) + 10);
+		const char* keysuffix = getenv("LOGDB_STRESS_KEY_SUFFIX");
+		char* key = (char*)malloc (strlen (keyprefix) + (keysuffix? strlen (keysuffix) : 10));
 		if (!key) {
 			perror("malloc 2");
 			(void)logdb_close (conn);
 			return 5;
 		}
-		sprintf (key, "%s:t%d", keyprefix, i);
+		if (keysuffix) {
+			sprintf (key, "%s%s", keyprefix, keysuffix);
+		} else {
+			sprintf (key, "%s:t%d", keyprefix, i);
+		}
 		int err = pthread_create (&threads[i], NULL, &thread_func, key);
 		if (err) {
 			printf("pthread_create: %s\n", strerror(err));
