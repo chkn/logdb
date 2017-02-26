@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ufwb version="1.14">
+    <grammar name="LogDB grammar" start="id:1" author="Alex Corrado">
+        <description>Grammar for LogDB database files</description>
+        <structure name="LogDB Database File" id="1" encoding="ISO_8859-1:1987" endian="little" signed="no">
+            <structure name="Header" id="2">
+                <string name="Magic" id="3" type="fixed-length" length="4"/>
+                <number name="Version" id="4" type="integer" length="2"/>
+            </structure>
+            <structure name="Record" id="6" repeatmax="-1">
+                <number name="KeyLength" id="7" type="integer" length="4"/>
+                <number name="ValueLength" id="8" type="integer" length="4"/>
+                <binary name="Key" id="9" length="KeyLength"/>
+                <binary name="Value" id="10" length="ValueLength"/>
+            </structure>
+            <structure name="Trailer" id="12" length="0" repeatmin="0">
+                <string name="LogMagic" mustmatch="yes" id="13" type="fixed-length" length="4">
+                    <fixedvalues>
+                        <fixedvalue name="LogMagic" value="LDBL"/>
+                    </fixedvalues>
+                </string>
+                <number name="Version" id="14" type="integer" length="2"/>
+                <number name="LogEntry" id="15" repeatmin="0" repeatmax="-1" type="integer" length="2"/>
+                <number name="LogOffset" id="18" type="integer" length="4"/>
+            </structure>
+        </structure>
+    </grammar>
+</ufwb>
