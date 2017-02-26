@@ -1,0 +1,8 @@
+[package]
+name = "logdb"
+version = "0.1.0"
+authors = ["Alex Corrado"]
+
+[lib]
+name = "logdb"
+crate-type = ["dylib"]

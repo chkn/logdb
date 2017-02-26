@@ -1,0 +1,13 @@
+.DS_Store
+LogDB.make
+Makefile
+Tests.make
+bin/
+obj/
+premake5
+StressTest.make
+StressTestDump.make
+*.userprefs
+*.xcodeproj/
+*.xcworkspace/
+*.nupkg
