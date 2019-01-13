@@ -49,7 +49,7 @@ My original use case was logging, hence the name.
 
 ### Build for Xamarin.iOS
 
-	$ xbuild bindings/C#/LogDB.iOS.csproj
+	$ msbuild bindings/C#/LogDB.iOS.csproj
 
 ### Clean
 
@@ -57,7 +57,7 @@ My original use case was logging, hence the name.
 
 ### Create Nuget Package for C# bindings
 
-	$ xbuild bindings/C#/Bindings.sln /p:Configuration=Release
+	$ msbuild bindings/C#/Bindings.sln /p:Configuration=Release
 
 ## Running the Tests
 
