@@ -15,7 +15,7 @@ if [ ! -e $BINARY ]; then
 fi
 
 if [ "$FILE" == "" ] || [ "$PROCS" == "" ] || [ "$THREADS" == "" ] || [ "$COUNT" == "" ]; then
-	echo "Usage: $0 [file] [processes] [threads]"
+	echo "Usage: $0 [file] [processes] [threads] [count]"
 	echo "Where:"
 	echo "   [file]      The name of the db file to open/create"
 	echo "   [processes] Number of processes to spawn"

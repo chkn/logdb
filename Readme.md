@@ -2,9 +2,11 @@
 
 A write-optimized, in-process key-value storage engine with multiple values per key.
 
+**WARNING/DISCLAIMER:** This is a new project and probably has bugs. Do not use this to store any data you cannot afford to lose. As per the [license](License.md), there is no warranty of any kind. If you choose to use this project, you do so at your own risk.
+
 Features:
 
-- **Write-optimized** - Writes to the database can be made concurrently by multiple threads and processes.
+- **Concurrent writes** - Writes to the database can be made concurrently by multiple threads and processes.
 - **Atomic and durable** - Supports transactions for atomic writes. Writers do not need to block other writers to make a fully durable commit.
 - **Single file database format** - A log file will be created alongside the database file while the database is open.
 
@@ -13,7 +15,7 @@ Caveats of current implementation:
 - No indexing yet. The only mode for reading the database is iterating through all records.
 - Reads do not interact with transactions. There is no way to read uncommitted writes.
 - No compression nor compaction; the database file may have some wasted space. However, the write algorithm attempts to mitigate this.
-- For writing, the size of the entire transaction (including nested transactions) must currently be less than 65KB. We will eliminate this requirement soon.
+- For writing, the size of the entire transaction (including nested transactions) must currently be less than 65KB. We will eventually eliminate this requirement.
 - Only supports `put` and `iterate` (read) operations (no `update` nor `delete`).
 - Should be robust against application crashes (and system-wide failures if `LOGDB_OPEN_NOSYNC` is not specified), however this is largely untested as of yet.
 - Developed and tested on OSX and iOS only.
@@ -26,7 +28,7 @@ Caveats of current implementation:
 My original use case was logging, hence the name.
 
 
-## Build
+## Building
 
 1. Git clone
 2. Download Premake 5 from [http://premake.github.io](http://premake.github.io/) and put it in the root of the git checkout.
@@ -57,6 +59,49 @@ My original use case was logging, hence the name.
 
 	$ xbuild bindings/C#/Bindings.sln /p:Configuration=Release
 
+## Running the Tests
+
+1. Follow the instructions in the previous section to build.
+2. From the command line, run `bin/Debug/Tests`. A [VS Code](https://code.visualstudio.com) launch configuration is also included to aid in debugging the tests.
+3. Under the `stress` directory, there is a multiprocess and multithreaded stress test for concurrent writes. Run it with `StressTestProcs.sh` and then inspect the resulting DB for data consistency. For instance, here are some results I get on my 2016 MacBook Pro (3.3 GHz i7, 16GB RAM) writing 5,000 small records to a database:
+
+```
+$ cd stress
+
+# 1 process, 1 thread writing 5000 records (resulting DB size: 88K)
+$ time ./StressTestProcs.sh test.db 1 1 5000
+
+real	0m0.589s
+user	0m0.051s
+sys	0m0.372s
+
+# 1 process, 5 threads each writing 1000 records (resulting DB size: 236K)
+$ time ./StressTestProcs.sh test.db 1 5 1000
+
+real	0m1.127s
+user	0m0.356s
+sys	0m1.405s
+
+# 5 processes, each with 1 thread writing 1000 records (resulting DB size: 107K)
+$ time ./StressTestProcs.sh test.db 5 1 1000
+
+real	0m0.899s
+user	0m0.393s
+sys	0m1.402s
+
+# 5 processes, each with 5 threads each writing 200 records (resulting DB size: 111K)
+$ time ./StressTestProcs.sh test.db 5 5 200
+
+real	0m1.565s
+user	0m1.248s
+sys	0m3.619s
+
+# After any of the above commands, run this to dump the test data
+#  Each thread of each process should have written numbers from 0 to your specified maximum
+$ ../bin/Debug/StressTestDump test.db | sort | less
+```
+
+The stress test is a pathological case for thread contention, with each thread constantly writing to the DB in a tight loop, which is why we see such performance degradation as we add more threads. However, given that multiple processes seem more performant than multiple threads, perhaps we can further optimize our in-process locking for steps 3-4 below.
 
 ## Design
 
