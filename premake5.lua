@@ -6,7 +6,7 @@ workspace "LogDB"
 
 	filter "configurations:Debug*"
 		defines { "DEBUG" }
-		flags { "Symbols" }
+		symbols "On"
 		targetdir "bin/Debug"
 
 	filter "configurations:DebugVerbose"
