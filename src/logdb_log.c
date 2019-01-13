@@ -10,7 +10,7 @@
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
-#include <libkern/OSAtomic.h>
+#include <stdatomic.h>
 
 static off_t logdb_log_offset (logdb_size_t index)
 {
@@ -250,9 +250,9 @@ static void logdb_log_inproc_unlock (logdb_log_t* log, logdb_size_t index, logdb
 
 	logdb_size_t lockindex = index - (lock->startindex);
 	if (type == LOGDB_LOG_LOCK_READ)
-		OSAtomicDecrement32Barrier (&lock->locks[lockindex]);
+		atomic_fetch_sub (&lock->locks[lockindex], 1);
 	else if (type == LOGDB_LOG_LOCK_WRITE)
-		OSAtomicIncrement32Barrier (&lock->locks[lockindex]);
+		atomic_fetch_add (&lock->locks[lockindex], 1);
 	else
 		abort();
 }
@@ -263,8 +263,8 @@ int logdb_log_lock (logdb_log_t* log, logdb_size_t index, logdb_log_lock_type ty
 		attempting to take the `fcntl` lock. Otherwise, a different thread
 		might inadvertently unlock us.
 	 */
-	volatile logdb_log_lock_t* volatile* dest = &log->lock;
-	volatile logdb_log_lock_t* lock = log->lock;
+	volatile _Atomic(logdb_log_lock_t*)* dest = &log->lock;
+	logdb_log_lock_t* lock = atomic_load (dest);
 
 tryagain1:
 	if (!lock || (lock->startindex > index)) {
@@ -274,10 +274,12 @@ tryagain1:
 			return -1;
 		}
 		newlock->startindex = index;
-		newlock->next = lock;
-		if (!OSAtomicCompareAndSwapPtrBarrier ((void*)lock, newlock, (void* volatile*)dest)) {
+		atomic_init (&newlock->next, lock);
+
+		/* FIXME: Benchmark if atomic_compare_exchange_weak is more performant
+		     (I assumend it wasn't, due to the `newlock` reallocation on loop) */
+		if (!atomic_compare_exchange_strong (dest, &lock, newlock)) {
 			free (newlock);
-			lock = *dest;
 			goto tryagain1;
 		}
         lock = newlock;
@@ -286,25 +288,25 @@ tryagain1:
 	logdb_size_t lockindex = index - (lock->startindex);
 	if (lockindex > 127) {
 		dest = &lock->next;
-		lock = lock->next;
+		lock = atomic_load (dest);
 		goto tryagain1;
 	}
 
 	/* Now that we have the correct structure, attempt to lock it */
 	int value;
 	struct flock flk;
-tryagain2:
 	value = lock->locks[lockindex];
+tryagain2:
 	if ((type == LOGDB_LOG_LOCK_READ) && (value >= 0)) {
 		/* Take a read lock 
 			FIXME: Prevent overflow!
 		*/
-		if (!OSAtomicCompareAndSwap32Barrier (value, value + 1, &lock->locks[lockindex]))
+		if (!atomic_compare_exchange_weak (&lock->locks[lockindex], &value, value + 1))
 			goto tryagain2;
 		flk.l_type = F_RDLCK;
 	} else if ((type == LOGDB_LOG_LOCK_WRITE) && (value == 0)) {
 		/* Take a write lock */
-		if (!OSAtomicCompareAndSwap32Barrier (0, -1, &lock->locks[lockindex]))
+		if (!atomic_compare_exchange_weak (&lock->locks[lockindex], &value, -1))
 			goto tryagain2;
 		flk.l_type = F_WRLCK;
 	} else {

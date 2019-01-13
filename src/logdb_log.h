@@ -4,6 +4,7 @@
 #include "logdb_internal.h"
 
 #include <sys/types.h>
+#include <stdatomic.h>
 
 /**
  * The suffix applied to the database file name to derive the
@@ -41,18 +42,18 @@ typedef struct logdb_log_lock_t {
 	 *  indicates the number of read locks taken, and -1 indicates a
 	 *  write lock is taken.
 	 */
-	int locks[128];
+	volatile atomic_int locks[128];
 
 	/**
 	 * If we run out of locks above, we simply append another structure here.
 	 */
-	volatile struct logdb_log_lock_t* next;
+	volatile _Atomic(struct logdb_log_lock_t*) next;
 } logdb_log_lock_t;
 
 typedef struct {
 	int fd;
 	char* path; /* needed to unlink log */
-	volatile logdb_log_lock_t* lock;
+	volatile _Atomic(logdb_log_lock_t*) lock;
 } logdb_log_t;
 
 typedef struct {

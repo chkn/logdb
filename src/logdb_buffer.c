@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <libkern/OSAtomic.h>
+#include <stdatomic.h>
 
 /**
  * Creates an unowned copy of the given buffer
@@ -153,13 +153,13 @@ logdb_buffer* logdb_buffer_append (logdb_buffer* buffer1, logdb_buffer* buffer2)
 void logdb_buffer_retain (logdb_buffer* buffer)
 {
 	logdb_buffer_t* buf = (logdb_buffer_t*)buffer;
-	OSAtomicIncrement32Barrier (&buf->refcnt);
+	atomic_fetch_add (&buf->refcnt, 1);
 }
 
 void logdb_buffer_free (logdb_buffer* buffer)
 {
 	logdb_buffer_t* buf = (logdb_buffer_t*)buffer;
-	if (!buf || OSAtomicDecrement32Barrier (&buf->refcnt))
+	if (!buf || (atomic_fetch_sub (&buf->refcnt, 1) > 1))
 		return;
 	if (buf->disposer)
 		buf->disposer (buf->data);

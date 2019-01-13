@@ -17,9 +17,9 @@ Caveats of current implementation:
 - Only supports `put` and `iterate` (read) operations (no `update` nor `delete`).
 - Should be robust against application crashes (and system-wide failures if `LOGDB_OPEN_NOSYNC` is not specified), however this is largely untested as of yet.
 - Developed and tested on OSX and iOS only.
-    - Uses mostly POSIX APIs, but some Darwin-specific APIs may have snuck in.
+    - Uses POSIX APIs, so should be portable.
     - May need some changes to work correctly on big endian machines.
-    - For Linux support we would also need to work around [https://bugzilla.kernel.org/show_bug.cgi?id=43178](https://bugzilla.kernel.org/show_bug.cgi?id=43178)
+    - For Linux support we would also need to work around [https://bugzilla.kernel.org/show_bug.cgi?id=43178](https://bugzilla.kernel.org/show_bug.cgi?id=43178) (run `./premake5 configure` to test if your system is affected)
 
 ## So, what is it good for?
 
